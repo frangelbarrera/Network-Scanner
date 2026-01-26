@@ -1,4 +1,4 @@
-# 🛡️ Network Scanner
+#  Network Scanner
 
 **AI-Assisted Vulnerability Assessment & Penetration Testing Tool**
 
@@ -11,16 +11,16 @@ Network Scanner is an open-source security scanning platform that combines tradi
 
 | Category | Features |
 |----------|----------|
-| ✅ **Reconnaissance** | Subdomain finder, WHOIS lookup, port scanning, DNS enumeration |
-| 🧠 **AI Assistant** | Interprets scan results, suggests next steps, explains findings |
-| 🚀 **Automation** | Automated comprehensive scans via CLI or web interface |
-| 📊 **Reports** | Generates professional PDF and HTML reports |
-| 👥 **Multi-user** | Team collaboration with project management and audit logs |
-| 🎯 **Learning Mode** | Educational explanations for students and beginners |
-| ☁️ **API Ready** | RESTful API for integration and automation |
-| 🔒 **Security** | Rate limiting, authentication, and secure configurations |
+|  **Reconnaissance** | Subdomain finder, WHOIS lookup, port scanning, DNS enumeration |
+|  **AI Assistant** | Interprets scan results, suggests next steps, explains findings |
+|  **Automation** | Automated comprehensive scans via CLI or web interface |
+|  **Reports** | Generates professional PDF and HTML reports |
+|  **Multi-user** | Team collaboration with project management and audit logs |
+|  **Learning Mode** | Educational explanations for students and beginners |
+|  **API Ready** | RESTful API for integration and automation |
+|  **Security** | Rate limiting, authentication, and secure configurations |
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 
@@ -92,7 +92,7 @@ network-scanner-cli port 192.168.1.1 --port-range 1-1000
 network-scanner-cli vuln https://example.com --scan-type web
 ```
 
-## 📖 Usage Examples
+##  Usage Examples
 
 ### Web Interface
 
@@ -137,7 +137,7 @@ ai_response = requests.post('http://localhost:5000/api/ai/chat',
                                 'context': result})
 ```
 
-## 🏗️ Architecture
+##  Architecture
 
 Network Scanner follows a modular architecture:
 
@@ -164,7 +164,7 @@ Network-Scanner/
 - **Report Generator**: Professional PDF/HTML report creation
 - **Multi-user System**: Authentication, projects, and audit logging
 
-## 🔍 Scan Types
+##  Scan Types
 
 ### 1. Subdomain Enumeration
 - Brute force common subdomains
@@ -196,7 +196,7 @@ Network-Scanner/
 - Name server identification
 - Expiration date monitoring
 
-## 🤖 AI Features
+##  AI Features
 
 Network Scanner integrates AI to enhance security assessments:
 
@@ -206,7 +206,7 @@ Network Scanner integrates AI to enhance security assessments:
 - **Learning Mode**: Explains techniques for educational purposes
 - **Contextual Chat**: Interactive AI assistant for security questions
 
-## 📊 Reporting
+##  Reporting
 
 Generate professional security reports in multiple formats:
 
@@ -215,7 +215,7 @@ Generate professional security reports in multiple formats:
 - **JSON Exports**: Machine-readable data for integration
 - **Executive Summaries**: High-level findings for management
 
-## 🔐 Security Considerations
+##  Security Considerations
 
 **Important**: Network Scanner is designed for authorized security testing only.
 
@@ -225,7 +225,7 @@ Generate professional security reports in multiple formats:
 - Respect rate limits and target system resources
 - Review local laws and regulations before testing
 
-## 🤝 Contributing
+##  Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -245,13 +245,13 @@ pytest backend/tests/
 npm test --prefix frontend
 ```
 
-## 📞 Support
+##  Support
 
-- 📚 **Documentation**: [Wiki](https://github.com/frangelbarrera/Network-Scanner/wiki)
-- 🐛 **Bug Reports**: [Issues](https://github.com/frangelbarrera/Network-Scanner/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/frangelbarrera/Network-Scanner/discussions)
+-  **Documentation**: [Wiki](https://github.com/frangelbarrera/Network-Scanner/wiki)
+-  **Bug Reports**: [Issues](https://github.com/frangelbarrera/Network-Scanner/issues)
+-  **Discussions**: [GitHub Discussions](https://github.com/frangelbarrera/Network-Scanner/discussions)
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - Built with Flask, React, and modern web technologies
 - Integrates nmap, dnspython, and other security tools
@@ -259,7 +259,7 @@ npm test --prefix frontend
 - Charts powered by Recharts
 - AI capabilities via OpenAI API
 
-## ⚠️ Disclaimer
+##  Disclaimer
 
 Network Scanner is for educational and authorized testing purposes only. Users are responsible for complying with applicable laws and obtaining proper authorization before scanning any systems. The developers assume no liability for misuse of this tool.
 
