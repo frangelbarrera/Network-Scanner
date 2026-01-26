@@ -7,7 +7,7 @@ Network Scanner is an open-source security scanning platform that combines tradi
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
 
-## 🔧 Features
+##  Features
 
 | Category | Features |
 |----------|----------|
