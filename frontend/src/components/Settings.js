@@ -102,7 +102,7 @@ const Settings = ({ showNotification }) => {
   const loadSettings = async () => {
     try {
       // Load settings from backend or localStorage
-      const savedSettings = localStorage.getItem('secscanx-settings');
+      const savedSettings = localStorage.getItem('network-scanner-settings');
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
         setSettings(prev => ({ ...prev, ...parsed }));
@@ -128,7 +128,7 @@ const Settings = ({ showNotification }) => {
     setIsLoading(true);
     try {
       // Save to localStorage and backend
-      localStorage.setItem('secscanx-settings', JSON.stringify(settings));
+      localStorage.setItem('network-scanner-settings', JSON.stringify(settings));
       
       // Update API settings if they've changed
       if (settings.openaiApiKey || settings.openaiModel) {
@@ -159,7 +159,7 @@ const Settings = ({ showNotification }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'secscanx-settings.json';
+      a.download = 'network-scanner-settings.json';
       a.click();
       URL.revokeObjectURL(url);
       showNotification('Settings exported successfully', 'success');

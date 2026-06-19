@@ -82,7 +82,7 @@ const apiService = {
     return {
       id: 1,
       username: 'demo_user',
-      email: 'demo@secscanx.com',
+      email: 'demo@network-scanner.local',
       role: 'user',
       learning_mode: true
     };

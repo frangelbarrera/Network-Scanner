@@ -319,7 +319,7 @@ class AIAssistant:
             if not self.api_key:
                 return self._fallback_chat_response(message, context)
             
-            system_message = """You are SecScanX AI Assistant, a cybersecurity expert that helps with vulnerability assessment and penetration testing. 
+            system_message = """You are Network Scanner AI Assistant, a cybersecurity expert that helps with vulnerability assessment and penetration testing. 
             You should be helpful, educational, and always emphasize ethical hacking practices. 
             If learning mode is enabled, explain concepts clearly for beginners."""
             
@@ -348,7 +348,7 @@ class AIAssistant:
     def _fallback_chat_response(self, message, context=None):
         """Fallback chat response when AI is not available"""
         responses = {
-            "help": "SecScanX offers subdomain enumeration, port scanning, vulnerability assessment, and automated reporting. Use the web interface or CLI to get started.",
+            "help": "Network Scanner offers subdomain enumeration, port scanning, vulnerability assessment, and automated reporting. Use the web interface or CLI to get started.",
             "scan": "You can perform different types of scans: subdomain enumeration, port scanning, DNS enumeration, and vulnerability assessment.",
             "vulnerability": "Vulnerability scanning helps identify security weaknesses in your target systems. Always ensure you have permission before scanning.",
             "subdomain": "Subdomain enumeration helps discover additional attack surface by finding subdomains of your target domain.",

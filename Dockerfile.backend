@@ -32,8 +32,8 @@ ENV FLASK_ENV=production
 ENV PYTHONPATH=/app
 
 # Create non-root user
-RUN useradd -m -u 1000 secscanx && chown -R secscanx:secscanx /app
-USER secscanx
+RUN useradd -m -u 1000 scanner && chown -R scanner:scanner /app
+USER scanner
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \

@@ -1,7 +1,7 @@
 {
-  "name": "secscanx-frontend",
+  "name": "network-scanner-frontend",
   "version": "1.0.0",
-  "description": "SecScanX Frontend - AI-Assisted Vulnerability Assessment Tool",
+  "description": "Network Scanner Frontend - AI-Assisted Vulnerability Assessment Tool",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.10.6",

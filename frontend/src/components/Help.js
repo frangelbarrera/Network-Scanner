@@ -63,31 +63,31 @@ const Help = () => {
     {
       name: "Subdomain Enumeration",
       description: "Discover subdomains using brute force, certificate transparency, and DNS techniques",
-      usage: "secscanx scan subdomain example.com",
+      usage: "network-scanner scan subdomain example.com",
       webUsage: "Scanner → Reconnaissance → Subdomain Enumeration"
     },
     {
       name: "Port Scanning",
       description: "Identify open ports and running services on target systems",
-      usage: "secscanx scan ports example.com",
+      usage: "network-scanner scan ports example.com",
       webUsage: "Scanner → Reconnaissance → Port Scan"
     },
     {
       name: "DNS Enumeration",
       description: "Gather DNS records and configuration information",
-      usage: "secscanx scan dns example.com",
+      usage: "network-scanner scan dns example.com",
       webUsage: "Scanner → Reconnaissance → DNS Enumeration"
     },
     {
       name: "Web Vulnerability Scan",
       description: "Test web applications for common security vulnerabilities",
-      usage: "secscanx scan web https://example.com",
+      usage: "network-scanner scan web https://example.com",
       webUsage: "Scanner → Web Application → Vulnerability Scan"
     },
     {
       name: "Full Assessment",
       description: "Comprehensive security assessment combining multiple scan types",
-      usage: "secscanx scan full example.com",
+      usage: "network-scanner scan full example.com",
       webUsage: "Scanner → Full Assessment"
     }
   ];
@@ -241,20 +241,20 @@ const Help = () => {
                     Basic Commands
                   </Typography>
                   <Paper sx={{ p: 2, bgcolor: 'grey.900', color: 'grey.100', fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                    <div># Install SecScanX</div>
+                    <div># Install Network Scanner</div>
                     <div>pip install -e .</div>
                     <br />
                     <div># Show help</div>
-                    <div>secscanx --help</div>
+                    <div>network-scanner --help</div>
                     <br />
                     <div># Basic scan</div>
-                    <div>secscanx scan subdomain example.com</div>
+                    <div>network-scanner scan subdomain example.com</div>
                     <br />
                     <div># Scan with output file</div>
-                    <div>secscanx scan ports example.com -o results.json</div>
+                    <div>network-scanner scan ports example.com -o results.json</div>
                     <br />
                     <div># Generate report</div>
-                    <div>secscanx report results.json --format pdf</div>
+                    <div>network-scanner report results.json --format pdf</div>
                   </Paper>
                 </Grid>
                 
@@ -264,16 +264,16 @@ const Help = () => {
                   </Typography>
                   <Paper sx={{ p: 2, bgcolor: 'grey.900', color: 'grey.100', fontFamily: 'monospace', fontSize: '0.875rem' }}>
                     <div># Enable learning mode</div>
-                    <div>secscanx --learning scan web https://example.com</div>
+                    <div>network-scanner --learning scan web https://example.com</div>
                     <br />
                     <div># Custom timeout and threads</div>
-                    <div>secscanx scan ports example.com --timeout 60 --threads 20</div>
+                    <div>network-scanner scan ports example.com --timeout 60 --threads 20</div>
                     <br />
                     <div># Verbose output</div>
-                    <div>secscanx -v scan full example.com</div>
+                    <div>network-scanner -v scan full example.com</div>
                     <br />
                     <div># Save to specific project</div>
-                    <div>secscanx scan subdomain example.com --project "client-audit"</div>
+                    <div>network-scanner scan subdomain example.com --project "client-audit"</div>
                   </Paper>
                 </Grid>
               </Grid>
@@ -419,14 +419,14 @@ const Help = () => {
               Need More Help?
             </Typography>
             <Typography variant="body2" paragraph>
-              SecScanX is an open-source project. If you encounter issues or need additional help:
+              Network Scanner is an open-source project. If you encounter issues or need additional help:
             </Typography>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               <Button
                 variant="outlined"
                 size="small"
                 startIcon={<CodeIcon />}
-                href="https://github.com/secscanx/secscanx"
+                href="https://github.com/frangelbarrera/Network-Scanner"
                 target="_blank"
               >
                 GitHub Repository
@@ -435,7 +435,7 @@ const Help = () => {
                 variant="outlined"
                 size="small"
                 startIcon={<BugIcon />}
-                href="https://github.com/secscanx/secscanx/issues"
+                href="https://github.com/frangelbarrera/Network-Scanner/issues"
                 target="_blank"
               >
                 Report Issues
@@ -444,7 +444,7 @@ const Help = () => {
                 variant="outlined"
                 size="small"
                 startIcon={<HelpIcon />}
-                href="https://github.com/secscanx/secscanx/discussions"
+                href="https://github.com/frangelbarrera/Network-Scanner/discussions"
                 target="_blank"
               >
                 Community Support

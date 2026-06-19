@@ -53,7 +53,7 @@ npm install
 # CLI setup
 cd ../cli
 pip3 install -r requirements.txt
-chmod +x secscanx.py
+chmod +x network_scanner_cli.py
 ```
 
 ### Configuration

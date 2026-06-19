@@ -16,15 +16,15 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: secscanx
-      POSTGRES_USER: secscanx
-      POSTGRES_PASSWORD: secscanx_password
+      POSTGRES_DB: network_scanner
+      POSTGRES_USER: network_scanner
+      POSTGRES_PASSWORD: network_scanner_password
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # SecScanX Backend API
+  # Network Scanner Backend API
   backend:
     build:
       context: .
@@ -34,7 +34,7 @@ services:
       - "5000:5000"
     environment:
       - FLASK_ENV=production
-      - DATABASE_URL=sqlite:///secscanx.db
+      - DATABASE_URL=sqlite:///network_scanner.db
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=your-secret-key-change-this
     volumes:
@@ -44,9 +44,9 @@ services:
     depends_on:
       - redis
     networks:
-      - secscanx
+      - network-scanner
 
-  # SecScanX Frontend
+  # Network Scanner Frontend
   frontend:
     build:
       context: .
@@ -57,7 +57,7 @@ services:
     depends_on:
       - backend
     networks:
-      - secscanx
+      - network-scanner
 
   # Nginx reverse proxy (optional)
   nginx:
@@ -73,7 +73,7 @@ services:
       - frontend
       - backend
     networks:
-      - secscanx
+      - network-scanner
 
 volumes:
   redis_data:
@@ -81,5 +81,5 @@ volumes:
   backend_data:
 
 networks:
-  secscanx:
+  network-scanner:
     driver: bridge

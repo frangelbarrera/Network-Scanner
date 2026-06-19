@@ -389,33 +389,21 @@ const Dashboard = ({ showNotification }) => {
         </Grid>
       </Grid>
 
-      {/* Support SecScanX Section */}
+      {/* Network Scanner Open Source */}
       <Card sx={{ mt: 4, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
         <CardContent sx={{ textAlign: 'center' }}>
           <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-            ❤️ Support SecScanX Development
+            🛡️ Network Scanner
           </Typography>
           <Typography variant="body1" paragraph>
-            Help us build better security tools! Your support enables new features, AI improvements, and educational resources.
+            Open-source network reconnaissance and vulnerability assessment tool.
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              color="warning"
-              size="large"
-              onClick={() => window.location.href = '/donate'}
-              sx={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.2)', 
-                '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.3)' } 
-              }}
-            >
-              💰 Donate Now
-            </Button>
             <Button
               variant="outlined"
               color="inherit"
               size="large"
-              onClick={() => window.open('https://github.com/yashab-cyber/SecScanX', '_blank')}
+              onClick={() => window.open('https://github.com/frangelbarrera/Network-Scanner', '_blank')}
               sx={{ 
                 borderColor: 'rgba(255, 255, 255, 0.5)',
                 '&:hover': { borderColor: 'white', backgroundColor: 'rgba(255, 255, 255, 0.1)' }
@@ -425,7 +413,7 @@ const Dashboard = ({ showNotification }) => {
             </Button>
           </Box>
           <Typography variant="body2" sx={{ mt: 2, opacity: 0.9 }}>
-            Made with ❤️ by Yashab Alam (ZehraSec) • Crypto donations accepted
+            Made with ❤️ by frangelbarrera
           </Typography>
         </CardContent>
       </Card>

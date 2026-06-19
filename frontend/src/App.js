@@ -55,7 +55,7 @@ const menuItems = [
   { text: 'AI Assistant', icon: <AIIcon />, path: '/ai-assistant' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   { text: 'Help', icon: <HelpIcon />, path: '/help' },
-  { text: 'Donate', icon: <DonateIcon />, path: '/donate' },
+  { text: 'About', icon: <DonateIcon />, path: '/about' },
 ];
 
 function App() {
@@ -229,7 +229,7 @@ function App() {
               <Route path="/ai-assistant" element={<AIAssistant showAlert={showAlert} />} />
               <Route path="/settings" element={<Settings showAlert={showAlert} />} />
               <Route path="/help" element={<Help />} />
-              <Route path="/donate" element={<Donate />} />
+              <Route path="/about" element={<Donate />} />
             </Routes>
           </Container>
         </Box>
