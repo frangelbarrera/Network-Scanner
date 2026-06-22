@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.venv/
+venv/
+.env
+!.env.example
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/build/
+frontend/.env
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reports (generated at runtime)
+reports/*.pdf
+reports/*.html
+reports/*.json
+!reports/readme.md
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Docker volumes
+postgres_data/
+redis_data/

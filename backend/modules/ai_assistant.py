@@ -11,8 +11,7 @@ class AIAssistant:
     
     def __init__(self):
         self.api_key = os.getenv('OPENAI_API_KEY')
-        if self.api_key:
-            openai.api_key = self.api_key
+        self.client = openai.OpenAI(api_key=self.api_key) if self.api_key else None
         self.learning_mode = True
     
     def analyze_subdomains(self, subdomain_results):
@@ -40,7 +39,7 @@ class AIAssistant:
             Format the response as JSON with keys: assessment, interesting_targets, attack_vectors, next_steps, risk_level, explanation
             """
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000,
@@ -124,7 +123,7 @@ class AIAssistant:
             Format the response as JSON with keys: assessment, vulnerabilities, recommended_tests, risk_level, security_concerns
             """
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000,
@@ -241,7 +240,7 @@ class AIAssistant:
             Format the response as JSON with keys: critical_vulns, exploitation_assessment, remediation_steps, risk_score, business_impact
             """
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1200,
@@ -330,7 +329,7 @@ class AIAssistant:
             
             messages.append({"role": "user", "content": message})
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
                 max_tokens=800,

@@ -8,12 +8,14 @@ import json
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+if app.config['SECRET_KEY'] == 'dev-key-change-in-production' and os.environ.get('FLASK_ENV') == 'production':
+    raise RuntimeError("SECRET_KEY must be set in production")
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///network_scanner.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
-CORS(app, origins="*")
+CORS(app, origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","))
 socketio = SocketIO(app, cors_allowed_origins="*")
 db = SQLAlchemy(app)
 

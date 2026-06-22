@@ -6,10 +6,9 @@ requests==2.31.0
 python-nmap==0.7.1
 dnspython==2.4.2
 whois==0.9.27
-subprocess32==3.5.4
 reportlab==4.0.4
 jinja2==3.1.2
-openai==0.28.1
+openai>=1.0.0
 python-dotenv==1.0.0
 sqlalchemy==2.0.23
 flask-sqlalchemy==3.1.1
