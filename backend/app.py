@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
-from flask_sqlalchemy import SQLAlchemy
 import os
 from datetime import datetime
 import json
@@ -16,8 +15,11 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 CORS(app, origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","))
-socketio = SocketIO(app, cors_allowed_origins="*")
-db = SQLAlchemy(app)
+socketio = SocketIO(app, cors_allowed_origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","))
+
+# Initialize database
+from extensions import db
+db.init_app(app)
 
 # Import modules
 from modules.reconnaissance import ReconModule

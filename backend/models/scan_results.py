@@ -1,8 +1,6 @@
-from flask_sqlalchemy import SQLAlchemy
+from extensions import db
 from datetime import datetime
 import json
-
-db = SQLAlchemy()
 
 class User(db.Model):
     """User model for authentication and team management"""
