@@ -262,3 +262,8 @@ Network Scanner is for educational and authorized testing purposes only. Users a
 ---
 
 **Made with ❤️ for the cybersecurity community**
+---
+
+[![Built by](https://img.shields.io/badge/built%20by-JorahOne%20LLC-FFB300?style=for-the-badge&labelColor=0d0d0c)](https://github.com/OneByJorah)
+
+<sub>Fork maintained by JorahOne, LLC as part of the JorahOne infrastructure ecosystem.</sub>
