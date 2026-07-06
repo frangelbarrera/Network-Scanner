@@ -59,14 +59,16 @@ class ReportGenerator:
         """Generate a comprehensive security assessment report"""
         try:
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'reports')
+            os.makedirs(reports_dir, exist_ok=True)
             
             if report_format.lower() == 'pdf':
                 filename = f"security_report_{timestamp}.pdf"
-                filepath = os.path.join('/workspaces/Network-Scanner/reports', filename)
+                filepath = os.path.join(reports_dir, filename)
                 self._generate_pdf_report(scan_data, filepath)
             elif report_format.lower() == 'html':
                 filename = f"security_report_{timestamp}.html"
-                filepath = os.path.join('/workspaces/Network-Scanner/reports', filename)
+                filepath = os.path.join(reports_dir, filename)
                 self._generate_html_report(scan_data, filepath)
             else:
                 raise ValueError(f"Unsupported report format: {report_format}")
