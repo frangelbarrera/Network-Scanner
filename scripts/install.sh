@@ -140,5 +140,5 @@ echo "  2. Start backend: cd backend && source venv/bin/activate && python app.p
 echo "  3. Start frontend: cd frontend && npm start"
 echo "  4. CLI usage: network-scanner --help"
 echo ""
-echo "📚 Documentation: https://github.com/frangelbarrera/Network-Scanner"
-echo "🐛 Issues: https://github.com/frangelbarrera/Network-Scanner/issues"
+echo "📚 Documentation: https://github.com/OneByJorah/Network-Scanner"
+echo "🐛 Issues: https://github.com/OneByJorah/Network-Scanner/issues"

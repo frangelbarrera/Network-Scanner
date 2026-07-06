@@ -32,7 +32,7 @@ Network Scanner is an open-source security scanning platform that combines tradi
 
 ```bash
 # Clone the repository
-git clone https://github.com/frangelbarrera/Network-Scanner.git
+git clone https://github.com/OneByJorah/Network-Scanner.git
 cd Network-Scanner
 
 # Run the installation script (Ubuntu/Debian)
@@ -233,23 +233,19 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ```bash
 # Clone and setup development environment
-git clone https://github.com/frangelbarrera/Network-Scanner.git
+git clone https://github.com/OneByJorah/Network-Scanner.git
 cd Network-Scanner
 
 # Install development dependencies
-pip install -r backend/requirements-dev.txt
-npm install --dev --prefix frontend
-
-# Run tests
-pytest backend/tests/
-npm test --prefix frontend
+pip install -r backend/requirements.txt
+npm install --prefix frontend
 ```
 
 ##  Support
 
--  **Documentation**: [Wiki](https://github.com/frangelbarrera/Network-Scanner/wiki)
--  **Bug Reports**: [Issues](https://github.com/frangelbarrera/Network-Scanner/issues)
--  **Discussions**: [GitHub Discussions](https://github.com/frangelbarrera/Network-Scanner/discussions)
+-  **Documentation**: [Wiki](https://github.com/OneByJorah/Network-Scanner/wiki)
+-  **Bug Reports**: [Issues](https://github.com/OneByJorah/Network-Scanner/issues)
+-  **Discussions**: [GitHub Discussions](https://github.com/OneByJorah/Network-Scanner/discussions)
 
 ##  Acknowledgments
 
