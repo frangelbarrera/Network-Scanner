@@ -445,7 +445,7 @@ class VulnScanner:
                 response = requests.get(test_url, timeout=5, verify=False)
                 if response.status_code == 200:
                     found_files.append(file)
-            except:
+            except requests.exceptions.RequestException:
                 continue
         
         if found_files:
@@ -501,7 +501,7 @@ class VulnScanner:
                 test_url = f'https://{target}'
                 requests.get(test_url, timeout=5, verify=False)
                 return True
-        except:
+        except requests.exceptions.RequestException:
             return False
     
     def _categorize_by_severity(self, vulnerabilities):
