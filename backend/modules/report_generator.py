@@ -59,21 +59,32 @@ class ReportGenerator:
         """Generate a comprehensive security assessment report"""
         try:
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            
+
+            # Resolve reports directory:
+            # - REPORTS_DIR env var (explicit override, recommended for production)
+            # - Otherwise default to '<cwd>/reports'. In Docker WORKDIR=/app, so this
+            #   resolves to /app/reports which is bind-mounted in docker-compose.yml.
+            #   In local dev it resolves to <repo_root>/reports (the existing folder).
+            reports_dir = os.environ.get(
+                'REPORTS_DIR',
+                os.path.join(os.getcwd(), 'reports')
+            )
+            os.makedirs(reports_dir, exist_ok=True)
+
             if report_format.lower() == 'pdf':
                 filename = f"security_report_{timestamp}.pdf"
-                filepath = os.path.join('/workspaces/Network-Scanner/reports', filename)
+                filepath = os.path.join(reports_dir, filename)
                 self._generate_pdf_report(scan_data, filepath)
             elif report_format.lower() == 'html':
                 filename = f"security_report_{timestamp}.html"
-                filepath = os.path.join('/workspaces/Network-Scanner/reports', filename)
+                filepath = os.path.join(reports_dir, filename)
                 self._generate_html_report(scan_data, filepath)
             else:
                 raise ValueError(f"Unsupported report format: {report_format}")
-            
+
             print(f"[SUCCESS] Report generated: {filepath}")
             return filepath
-            
+
         except Exception as e:
             print(f"[ERROR] Report generation failed: {str(e)}")
             raise e

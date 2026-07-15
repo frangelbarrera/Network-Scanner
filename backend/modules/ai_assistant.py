@@ -40,7 +40,7 @@ class AIAssistant:
             """
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000,
                 temperature=0.3
@@ -124,7 +124,7 @@ class AIAssistant:
             """
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000,
                 temperature=0.3
@@ -241,7 +241,7 @@ class AIAssistant:
             """
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1200,
                 temperature=0.3
@@ -330,7 +330,7 @@ class AIAssistant:
             messages.append({"role": "user", "content": message})
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                 messages=messages,
                 max_tokens=800,
                 temperature=0.7

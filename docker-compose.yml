@@ -37,6 +37,14 @@ services:
       - DATABASE_URL=sqlite:///network_scanner.db
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=your-secret-key-change-this
+      # Bind Flask to all interfaces inside the container so Docker port-forwarding
+      # and the frontend container can reach it. The default 127.0.0.1 would break
+      # Docker networking. Operators running bare-metal should leave HOST unset.
+      - HOST=0.0.0.0
+      # Reports directory — bind-mounted below as ./reports:/app/reports
+      - REPORTS_DIR=/app/reports
+      # Allow the React frontend container (and localhost dev) to call the API.
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:80,http://frontend
     volumes:
       - ./reports:/app/reports
       - ./logs:/app/logs

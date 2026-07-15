@@ -16,7 +16,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 CORS(app, origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","))
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","))
 db = SQLAlchemy(app)
 
 # Import modules
@@ -248,6 +248,14 @@ if __name__ == '__main__':
     # Create database tables
     with app.app_context():
         db.create_all()
-    
-    # Run the application
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+
+    # SECURITY: debug=False prevents RCE via the Werkzeug debugger PIN.
+    # debug_mode is enabled only when FLASK_ENV=development (explicit opt-in).
+    # SECURITY: bind to 127.0.0.1 by default to prevent public exposure.
+    # Operators who need remote access (including Docker deployments) MUST set
+    # the HOST env var (e.g. HOST=0.0.0.0) and place a reverse proxy with TLS
+    # and authentication in front. docker-compose.yml sets HOST=0.0.0.0 for the
+    # backend service so the container remains reachable on the Docker network.
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    host = os.environ.get('HOST', '127.0.0.1')
+    socketio.run(app, host=host, port=5000, debug=debug_mode)

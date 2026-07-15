@@ -2,7 +2,6 @@ import nmap
 import requests
 import json
 from datetime import datetime
-import subprocess
 import socket
 import ssl
 import re

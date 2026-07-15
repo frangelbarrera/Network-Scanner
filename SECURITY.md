@@ -7,9 +7,61 @@ in the Network-Scanner project itself (Flask backend, React frontend,
 Python CLI). It does **not** describe how to use the tool offensively —
 for that, see `README.md` and `docs/`.
 
-> **Project status (2026):** This repository is in maintenance mode and
-> will be archived after a critical fix is applied (`debug=True` →
-> `debug=False` in `backend/app.py`). New features will not be accepted.
+> **Project status (2026):** This repository received a critical security
+> patch addressing the issues below. The project remains functional and
+> open for security reports; new features are not the priority, but the
+> existing functionality (Flask backend, React frontend, Docker stack,
+> CLI) is preserved.
+>
+> Fixes applied in the latest security commit:
+>
+> - `app.py`: `debug=True` → `debug=False` by default (closes RCE via the
+>   Werkzeug debugger PIN). Debug mode is opt-in via `FLASK_ENV=development`.
+> - `app.py`: `host='0.0.0.0'` → `host=os.environ.get('HOST', '127.0.0.1')`
+>   (loopback by default; Docker sets `HOST=0.0.0.0` explicitly in
+>   `docker-compose.yml` so the container remains reachable).
+> - `app.py`: SocketIO `cors_allowed_origins="*"` → env-var-driven via
+>   `CORS_ORIGINS` (default `http://localhost:3000`). `docker-compose.yml`
+>   sets it to allow the frontend container.
+> - `reconnaissance.py`: undefined `name` → `domain_name` in
+>   `_cert_transparency_search`. The method was silently broken (the
+>   `except Exception` swallowed the `NameError` and returned `[]`). Wildcard
+>   certificate entries (`*.example.com`) are now explicitly skipped.
+> - `ai_assistant.py`: hardcoded `gpt-3.5-turbo` (4 occurrences) →
+>   `OPENAI_MODEL` env var (default `gpt-4o-mini`, the recommended
+>   successor; the `gpt-3.5-turbo-0125` snapshot is scheduled for
+>   shutdown on 2026-10-23).
+> - `requirements.txt`: removed `jwt==1.3.1` (it conflicts with
+>   `pyjwt==2.8.0` and neither is imported by the codebase). `pyjwt`
+>   is kept as the maintained successor.
+> - `report_generator.py`: hardcoded `/workspaces/Network-Scanner/reports`
+>   → `REPORTS_DIR` env var (default `<cwd>/reports`, which resolves
+>   correctly in local dev and inside the Docker container where
+>   `WORKDIR=/app` and `./reports` is bind-mounted to `/app/reports`).
+> - `docker-compose.yml`: added `HOST=0.0.0.0`, `REPORTS_DIR=/app/reports`,
+>   and `CORS_ORIGINS` to the backend service so the Docker stack keeps
+>   working with the new secure defaults.
+> - Removed unused imports: `subprocess`, `json`, `threading` in
+>   `reconnaissance.py`; `subprocess` in `scanner.py`.
+>
+> **Known remaining issues (documented; not all are planned to be fixed):**
+>
+> - `/api/scan/*` and `/api/vulnerability/*` endpoints have no
+>   authentication. Operators exposing the backend publicly MUST put a
+>   reverse proxy with authentication in front. The default
+>   `host='127.0.0.1'` (when `HOST` is unset) limits exposure to localhost.
+> - `scanner.py` uses `verify=False` in 4 `requests.get()` calls (MITM
+>   risk for the scanner itself, but necessary because scanned targets
+>   may have self-signed certs).
+> - 31 broad `except Exception` catches across the codebase hide errors
+>   silently (refactor is out of scope for this patch).
+> - `socket.gethostbyname()` calls in `reconnaissance.py` have no timeout
+>   (potential DoS via slow DNS, low priority).
+> - Additional unused imports remain in `app.py` (`json`, `ScanResult`,
+>   `User`, `Project`), `scanner.py` (`json`, `re`, `concurrent.futures`),
+>   `report_generator.py` (8 imports), and 4 unused `e` vars in
+>   `ai_assistant.py`. They are not security-relevant and are deferred.
+>
 > Security reports are still welcome and will be triaged.
 
 ## Supported Versions
