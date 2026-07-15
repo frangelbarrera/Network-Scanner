@@ -39,7 +39,7 @@ import {
   Api as ApiIcon,
   Notifications as NotificationsIcon,
   Settings as SettingsIcon,
-  StorageIcon,
+  Storage as StorageIcon,
   NetworkCheck as NetworkIcon
 } from '@mui/icons-material';
 import { useScan } from '../context/ScanContext';
@@ -63,7 +63,7 @@ const Settings = ({ showNotification }) => {
     
     // API Settings
     openaiApiKey: '',
-    openaiModel: 'gpt-3.5-turbo',
+    openaiModel: 'gpt-4o-mini',
     maxTokens: 1000,
     
     // Scanning Settings

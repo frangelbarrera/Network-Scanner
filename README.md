@@ -7,6 +7,43 @@ Network Scanner is an open-source security scanning platform that combines tradi
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
 
+## Screenshots
+
+### Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+
+Overview of scan statistics, recent activity, and quick actions. Metric cards summarise total scans, vulnerabilities found, and active projects at a glance.
+
+### Scanner
+![Scanner](docs/screenshots/scanner.png)
+
+Configure and launch scans against a target. Tabs let you switch between subdomain enumeration, port scanning, vulnerability assessment, DNS enumeration, and WHOIS lookup. Learning Mode toggles educational explanations for beginners.
+
+### Scan Results
+![Scan Results](docs/screenshots/results.png)
+
+Browse previous scan results with filters by type and severity. Each entry links to the detailed findings and the AI analysis produced alongside the scan.
+
+### AI Assistant
+![AI Assistant](docs/screenshots/ai-assistant.png)
+
+Chat interface backed by OpenAI. Ask for explanations of vulnerabilities, prioritisation guidance, or remediation steps. Quick Questions provide one-click prompts for common security topics.
+
+### Reports
+![Reports](docs/screenshots/reports.png)
+
+List of generated security assessment reports. Filter by type, search by target, and download as PDF or HTML.
+
+### Settings
+![Settings](docs/screenshots/settings.png)
+
+Configure API keys, default scan parameters, report format, security options, and advanced behaviour. Settings persist across sessions via the browser.
+
+### Sample HTML Report
+![Sample Report](docs/screenshots/sample-report.png)
+
+A generated HTML report rendered in the browser. The same content can be exported as PDF for stakeholder distribution.
+
 ##  Features
 
 | Category | Features |
