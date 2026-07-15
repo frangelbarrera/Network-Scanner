@@ -133,7 +133,7 @@ const Dashboard = ({ showNotification }) => {
         <Grid item xs={12} sm={6} md={3}>
           <Card className="stat-card">
             <CardContent sx={{ textAlign: 'center' }}>
-              <SecurityIcon sx={{ fontSize: 40, color: '#3f51b5', mb: 1 }} />
+              <SecurityIcon sx={{ fontSize: 40, color: '#8a9ba8', mb: 1 }} />
               <Typography variant="h4" component="div" className="stat-number">
                 {statistics?.total_scans || scanHistory.length}
               </Typography>
@@ -144,7 +144,7 @@ const Dashboard = ({ showNotification }) => {
         <Grid item xs={12} sm={6} md={3}>
           <Card className="stat-card">
             <CardContent sx={{ textAlign: 'center' }}>
-              <BugIcon sx={{ fontSize: 40, color: '#f44336', mb: 1 }} />
+              <BugIcon sx={{ fontSize: 40, color: '#a85850', mb: 1 }} />
               <Typography variant="h4" component="div" className="stat-number">
                 {statistics?.vulnerabilities_found || scanHistory.reduce((acc, scan) => acc + (scan.vulnerabilities?.length || 0), 0)}
               </Typography>
@@ -155,7 +155,7 @@ const Dashboard = ({ showNotification }) => {
         <Grid item xs={12} sm={6} md={3}>
           <Card className="stat-card">
             <CardContent sx={{ textAlign: 'center' }}>
-              <ReportIcon sx={{ fontSize: 40, color: '#ff9800', mb: 1 }} />
+              <ReportIcon sx={{ fontSize: 40, color: '#b08850', mb: 1 }} />
               <Typography variant="h4" component="div" className="stat-number">
                 {projects.length}
               </Typography>
@@ -166,7 +166,7 @@ const Dashboard = ({ showNotification }) => {
         <Grid item xs={12} sm={6} md={3}>
           <Card className="stat-card">
             <CardContent sx={{ textAlign: 'center' }}>
-              <TrendingIcon sx={{ fontSize: 40, color: '#4caf50', mb: 1 }} />
+              <TrendingIcon sx={{ fontSize: 40, color: '#5a8a6a', mb: 1 }} />
               <Typography variant="h4" component="div" className="stat-number">
                 {statistics?.success_rate || '95.2'}%
               </Typography>
@@ -390,7 +390,7 @@ const Dashboard = ({ showNotification }) => {
       </Grid>
 
       {/* Network Scanner Open Source */}
-      <Card sx={{ mt: 4, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+      <Card sx={{ mt: 4, backgroundColor: '#2a2a2a', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
         <CardContent sx={{ textAlign: 'center' }}>
           <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
             🛡️ Network Scanner

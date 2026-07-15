@@ -49,13 +49,12 @@ A generated HTML report rendered in the browser. The same content can be exporte
 | Category | Features |
 |----------|----------|
 |  **Reconnaissance** | Subdomain finder, WHOIS lookup, port scanning, DNS enumeration |
-|  **AI Assistant** | Interprets scan results, suggests next steps, explains findings |
-|  **Automation** | Automated comprehensive scans via CLI or web interface |
-|  **Reports** | Generates professional PDF and HTML reports |
-|  **Multi-user** | Team collaboration with project management and audit logs |
+|  **AI Assistant** | OpenAI-powered analysis of scan results with fallback mode |
+|  **Automation** | Comprehensive scans via CLI or web interface |
+|  **Reports** | Generates PDF and HTML reports |
 |  **Learning Mode** | Educational explanations for students and beginners |
 |  **API Ready** | RESTful API for integration and automation |
-|  **Security** | Rate limiting, authentication, and secure configurations |
+|  **Docker** | Containerised deployment via docker-compose |
 
 ##  Quick Start
 
@@ -121,12 +120,12 @@ npm start
 **Use the CLI:**
 ```bash
 # Add to PATH or use directly
-./cli/network_scanner_cli.py --help
+python cli/network_scanner_cli.py --help
 
 # Example scans
-network-scanner-cli subdomain example.com
-network-scanner-cli port 192.168.1.1 --port-range 1-1000
-network-scanner-cli vuln https://example.com --scan-type web
+python cli/network_scanner_cli.py subdomain example.com
+python cli/network_scanner_cli.py port 192.168.1.1 --port-range 1-1000
+python cli/network_scanner_cli.py vuln https://example.com --scan-type web
 ```
 
 ##  Usage Examples
@@ -143,19 +142,19 @@ network-scanner-cli vuln https://example.com --scan-type web
 
 ```bash
 # Comprehensive subdomain enumeration
-network-scanner-cli subdomain target.com --output results.json
+python cli/network_scanner_cli.py subdomain target.com --output results.json
 
 # Port scan with custom range
-network-scanner-cli port 10.0.0.1 --port-range 1-65535
+python cli/network_scanner_cli.py port 10.0.0.1 --port-range 1-65535
 
 # Web application vulnerability assessment
-network-scanner-cli vuln https://target.com --scan-type comprehensive
+python cli/network_scanner_cli.py vuln https://target.com --scan-type comprehensive
 
 # DNS reconnaissance
-network-scanner-cli dns target.com
+python cli/network_scanner_cli.py dns target.com
 
 # Generate professional report
-network-scanner-cli report results.json --format pdf
+python cli/network_scanner_cli.py report results.json --format pdf
 ```
 
 ### API Usage
@@ -273,13 +272,14 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 git clone https://github.com/frangelbarrera/Network-Scanner.git
 cd Network-Scanner
 
-# Install development dependencies
-pip install -r backend/requirements-dev.txt
-npm install --dev --prefix frontend
+# Install dependencies
+pip install -r backend/requirements.txt
+pip install -r cli/requirements.txt
+cd frontend && npm install && cd ..
 
-# Run tests
-pytest backend/tests/
-npm test --prefix frontend
+# Run the regression tests
+cd backend
+python -m unittest tests.test_regression -v
 ```
 
 ##  Support

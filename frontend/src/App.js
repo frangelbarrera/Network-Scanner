@@ -27,7 +27,6 @@ import {
   SmartToy as AIIcon,
   Settings as SettingsIcon,
   Help as HelpIcon,
-  AccountCircle as AccountIcon,
   Favorite as DonateIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -121,17 +120,6 @@ function App() {
           </ListItem>
         ))}
       </List>
-      <Divider />
-      <List>
-        <ListItem disablePadding>
-          <ListItemButton>
-            <ListItemIcon>
-              <AccountIcon />
-            </ListItemIcon>
-            <ListItemText primary="Profile" />
-          </ListItemButton>
-        </ListItem>
-      </List>
     </Box>
   );
 
@@ -144,8 +132,7 @@ function App() {
           sx={{
             width: { sm: `calc(100% - ${drawerWidth}px)` },
             ml: { sm: `${drawerWidth}px` },
-            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-            backdropFilter: 'blur(10px)',
+            backgroundColor: '#1a1a1a',
           }}
         >
           <Toolbar>
@@ -186,7 +173,7 @@ function App() {
               '& .MuiDrawer-paper': {
                 boxSizing: 'border-box',
                 width: drawerWidth,
-                background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+                backgroundColor: '#1a1a1a',
               },
             }}
           >
@@ -199,7 +186,7 @@ function App() {
               '& .MuiDrawer-paper': {
                 boxSizing: 'border-box',
                 width: drawerWidth,
-                background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+                backgroundColor: '#1a1a1a',
               },
             }}
             open
