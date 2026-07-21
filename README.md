@@ -6,6 +6,13 @@ Network Scanner is an open-source security scanning platform that combines tradi
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
+[![License: MIT](https://img.shields.io/github/license/frangelbarrera/REPO?style=flat-square)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/frangelbarrera/Network-Scanner?style=flat-square)](https://github.com/frangelbarrera/Network-Scanner/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/frangelbarrera/Network-Scanner?style=flat-square)](https://github.com/frangelbarrera/Network-Scanner/commits)
+[![Issues](https://img.shields.io/github/issues/frangelbarrera/Network-Scanner?style=flat-square)](https://github.com/frangelbarrera/Network-Scanner/issues)
+[![Top Language](https://img.shields.io/github/languages/top/frangelbarrera/Network-Scanner?style=flat-square)](https://github.com/frangelbarrera/Network-Scanner)
+[![Contributors](https://img.shields.io/github/contributors/frangelbarrera/Network-Scanner?style=flat-square)](https://github.com/frangelbarrera/Network-Scanner/graphs/contributors)
+[![Repo Size](https://img.shields.io/github/repo-size/frangelbarrera/Network-Scanner?style=flat-square)](https://github.com/frangelbarrera/Network-Scanner)
 
 ## Screenshots
 
