@@ -1,0 +1,99 @@
+"""Regression tests for protected API contracts and automated scan behavior."""
+import os
+import sys
+import types
+import unittest
+from unittest.mock import MagicMock
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+
+class _MockPortScanner:
+    def __init__(self):
+        pass
+
+
+nmap_mock = types.ModuleType("nmap")
+nmap_mock.PortScanner = _MockPortScanner
+sys.modules["nmap"] = nmap_mock
+
+import app as application  # noqa: E402
+
+
+class TestProductionConfiguration(unittest.TestCase):
+    def test_compose_placeholder_is_listed_as_invalid_production_secret(self):
+        self.assertIn("your-secret-key-change-this", application.PRODUCTION_SECRET_PLACEHOLDERS)
+
+    def test_compose_requires_independent_api_token(self):
+        compose_path = os.path.join(os.path.dirname(__file__), '..', '..', 'docker-compose.yml')
+        with open(compose_path, encoding='utf-8') as compose_file:
+            compose = compose_file.read()
+        self.assertIn('API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:?', compose)
+        self.assertNotIn('"5000:5000"', compose)
+        self.assertNotIn('"443:443"', compose)
+
+
+class TestApiValidation(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = application.app.test_client()
+
+    def test_port_range_rejects_non_numeric_values_before_scanning(self):
+        application.recon_module.port_scan = MagicMock()
+        response = self.client.post(
+            '/api/scan/ports',
+            json={'target': '127.0.0.1', 'port_range': 'not-a-port-range'},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Port range', response.get_json()['error'])
+        application.recon_module.port_scan.assert_not_called()
+
+    def test_port_range_rejects_out_of_bounds_port_before_scanning(self):
+        application.recon_module.port_scan = MagicMock()
+        response = self.client.post(
+            '/api/scan/ports',
+            json={'target': '127.0.0.1', 'port_range': '1-70000'},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('between 1 and 65535', response.get_json()['error'])
+        application.recon_module.port_scan.assert_not_called()
+
+    def test_vulnerability_scan_rejects_unsupported_type(self):
+        application.vuln_scanner.scan_target = MagicMock()
+        response = self.client.post(
+            '/api/vulnerability/scan',
+            json={'target': '127.0.0.1', 'scan_type': 'unsupported'},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('scan_type must be one of', response.get_json()['error'])
+        application.vuln_scanner.scan_target.assert_not_called()
+
+
+class TestAutomatedScanContract(unittest.TestCase):
+    def setUp(self):
+        application.recon_module.dns_enumeration = MagicMock(return_value={'A': ['127.0.0.1']})
+        application.ai_assistant.analyze_comprehensive_scan = MagicMock(return_value={'source': 'test'})
+        self.client = application.socketio.test_client(application.app)
+
+    def tearDown(self):
+        self.client.disconnect()
+
+    def test_dns_selection_executes_dns_and_returns_its_result(self):
+        self.client.emit('start_automated_scan', {'target': '127.0.0.1', 'scan_types': ['dns']})
+        events = self.client.get_received()
+        completed = [event for event in events if event['name'] == 'scan_complete']
+        self.assertEqual(len(completed), 1)
+        result = completed[0]['args'][0]['results']
+        self.assertEqual(result['dns'], {'A': ['127.0.0.1']})
+        application.recon_module.dns_enumeration.assert_called_once_with('127.0.0.1')
+
+    def test_automated_scan_rejects_unsupported_type(self):
+        self.client.emit('start_automated_scan', {'target': '127.0.0.1', 'scan_types': ['invalid']})
+        events = self.client.get_received()
+        errors = [event for event in events if event['name'] == 'scan_error']
+        self.assertEqual(len(errors), 1)
+        self.assertIn('unsupported', errors[0]['args'][0]['error'])
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

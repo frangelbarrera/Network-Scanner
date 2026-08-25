@@ -1,50 +1,45 @@
 version: '3.8'
 
 services:
-  # Redis for caching and background tasks
+  # Internal cache and task broker. It is intentionally not published to the host.
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env before starting Compose}
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    networks:
+      - network-scanner
 
-  # PostgreSQL database (optional - SQLite is default)
+  # PostgreSQL is optional because SQLite remains the default backend datastore.
+  # Start it explicitly with: docker compose --profile postgres up -d
   postgres:
     image: postgres:15-alpine
     restart: unless-stopped
+    profiles: ["postgres"]
     environment:
-      POSTGRES_DB: network_scanner
-      POSTGRES_USER: network_scanner
-      POSTGRES_PASSWORD: network_scanner_password
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-network_scanner}
+      POSTGRES_USER: ${POSTGRES_USER:-network_scanner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env before enabling the postgres profile}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - network-scanner
 
-  # Network Scanner Backend API
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
     restart: unless-stopped
-    ports:
-      - "5000:5000"
     environment:
-      - FLASK_ENV=production
-      - DATABASE_URL=sqlite:///network_scanner.db
-      - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=your-secret-key-change-this
-      # Bind Flask to all interfaces inside the container so Docker port-forwarding
-      # and the frontend container can reach it. The default 127.0.0.1 would break
-      # Docker networking. Operators running bare-metal should leave HOST unset.
-      - HOST=0.0.0.0
-      # Reports directory — bind-mounted below as ./reports:/app/reports
-      - REPORTS_DIR=/app/reports
-      # Allow the React frontend container (and localhost dev) to call the API.
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:80,http://frontend
+      FLASK_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///network_scanner.db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env before starting Compose}@redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:?Set a random SECRET_KEY of at least 32 characters in .env before starting Compose}
+      API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:?Set a random API_ACCESS_TOKEN in .env before starting Compose}
+      HOST: 0.0.0.0
+      REPORTS_DIR: /app/reports
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
       - ./reports:/app/reports
       - ./logs:/app/logs
@@ -54,29 +49,25 @@ services:
     networks:
       - network-scanner
 
-  # Network Scanner Frontend
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
     restart: unless-stopped
-    ports:
-      - "3000:80"
     depends_on:
       - backend
     networks:
       - network-scanner
 
-  # Nginx reverse proxy (optional)
+  # The proxy is the only public service. Put TLS termination in a managed
+  # reverse proxy or load balancer in front of this service for production.
   nginx:
     image: nginx:alpine
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - frontend
       - backend

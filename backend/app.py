@@ -1,23 +1,62 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO, emit
 from flask_sqlalchemy import SQLAlchemy
+from functools import wraps
+import hmac
 import os
+import re
 from datetime import datetime
-import json
+
+
+PRODUCTION_SECRET_PLACEHOLDERS = {
+    "",
+    "dev-key-change-in-production",
+    "your-secret-key-change-this",
+    "change-this",
+    "secret",
+}
+VALID_VULNERABILITY_SCAN_TYPES = {"basic", "web", "network", "comprehensive"}
+VALID_AUTOMATED_SCAN_TYPES = {"subdomain", "port", "vuln", "dns"}
+PORT_RANGE_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
+
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
-if app.config['SECRET_KEY'] == 'dev-key-change-in-production' and os.environ.get('FLASK_ENV') == 'production':
-    raise RuntimeError("SECRET_KEY must be set in production")
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///network_scanner.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+is_production = os.environ.get("FLASK_ENV") == "production"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-in-production")
+if is_production and app.config["SECRET_KEY"] in PRODUCTION_SECRET_PLACEHOLDERS:
+    raise RuntimeError("SECRET_KEY must be a strong, unique value in production")
 
-# Initialize extensions
-CORS(app, origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","))
-socketio = SocketIO(app, cors_allowed_origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","))
+api_access_token = os.environ.get("API_ACCESS_TOKEN", "")
+if is_production and not api_access_token:
+    raise RuntimeError("API_ACCESS_TOKEN must be set in production")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///network_scanner.db")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# CORS is unnecessary for the default same-origin deployment. Operators can
+# explicitly configure trusted origins when hosting the UI separately.
+cors_origins = [origin.strip() for origin in os.environ.get("CORS_ORIGINS", "").split(",") if origin.strip()]
+if cors_origins:
+    CORS(app, origins=cors_origins)
+
+socketio_options = {"cors_allowed_origins": cors_origins} if cors_origins else {}
+socketio = SocketIO(
+    app,
+    async_mode=os.environ.get("SOCKETIO_ASYNC_MODE", "threading"),
+    **socketio_options,
+)
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=[os.environ.get("RATE_LIMIT_DEFAULT", "60 per minute")],
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
 db = SQLAlchemy(app)
+
 
 # Import modules
 from modules.reconnaissance import ReconModule
@@ -39,23 +78,69 @@ def get_json_payload():
     return payload if isinstance(payload, dict) else None
 
 
+def require_api_token(view):
+    """Require the operator-provided bearer token when one is configured."""
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if not api_access_token:
+            return view(*args, **kwargs)
+
+        authorization = request.headers.get("Authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token or not hmac.compare_digest(token, api_access_token):
+            return jsonify({"error": "Valid bearer token required"}), 401
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
+def validate_target(value):
+    """Return a normalized target or a human-readable validation error."""
+    if not isinstance(value, str):
+        return None, "Target must be a string"
+    target = value.strip()
+    if not target:
+        return None, "Target is required"
+    if len(target) > 253 or any(character.isspace() for character in target):
+        return None, "Target contains invalid characters"
+    return target, None
+
+
+def validate_port_range(value):
+    """Accept only Nmap-compatible numeric single ports, ranges, and lists."""
+    if not isinstance(value, str):
+        return None, "Port range must be a string"
+    port_range = value.strip()
+    if not PORT_RANGE_PATTERN.fullmatch(port_range):
+        return None, "Port range must contain only ports, ranges, and commas"
+
+    for part in port_range.split(","):
+        start_text, separator, end_text = part.partition("-")
+        start = int(start_text)
+        end = int(end_text) if separator else start
+        if not 1 <= start <= end <= 65535:
+            return None, "Ports must be between 1 and 65535"
+    return port_range, None
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
     return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
 
 @app.route('/api/scan/subdomain', methods=['POST'])
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@require_api_token
 def scan_subdomains():
     """Subdomain enumeration endpoint"""
     try:
         payload = get_json_payload()
         if payload is None:
             return jsonify({"error": "Request body must be a JSON object"}), 400
-        domain = payload.get('domain')
-        
-        if not domain:
-            return jsonify({"error": "Domain is required"}), 400
-        
+        domain, error = validate_target(payload.get("domain"))
+        if error:
+            return jsonify({"error": error}), 400
+
         # Perform subdomain scan
         results = recon_module.find_subdomains(domain)
         
@@ -76,18 +161,21 @@ def scan_subdomains():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/scan/ports', methods=['POST'])
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@require_api_token
 def scan_ports():
     """Port scanning endpoint"""
     try:
         payload = get_json_payload()
         if payload is None:
             return jsonify({"error": "Request body must be a JSON object"}), 400
-        target = payload.get('target')
-        port_range = payload.get('port_range', '1-1000')
-        
-        if not target:
-            return jsonify({"error": "Target is required"}), 400
-        
+        target, target_error = validate_target(payload.get("target"))
+        if target_error:
+            return jsonify({"error": target_error}), 400
+        port_range, port_range_error = validate_port_range(payload.get("port_range", "1-1000"))
+        if port_range_error:
+            return jsonify({"error": port_range_error}), 400
+
         # Perform port scan
         results = recon_module.port_scan(target, port_range)
         
@@ -110,17 +198,18 @@ def scan_ports():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/scan/whois', methods=['POST'])
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@require_api_token
 def whois_lookup():
     """WHOIS lookup endpoint"""
     try:
         payload = get_json_payload()
         if payload is None:
             return jsonify({"error": "Request body must be a JSON object"}), 400
-        domain = payload.get('domain')
-        
-        if not domain:
-            return jsonify({"error": "Domain is required"}), 400
-        
+        domain, error = validate_target(payload.get("domain"))
+        if error:
+            return jsonify({"error": error}), 400
+
         # Perform WHOIS lookup
         results = recon_module.whois_lookup(domain)
         
@@ -134,17 +223,18 @@ def whois_lookup():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/scan/dns', methods=['POST'])
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@require_api_token
 def dns_enumeration():
     """DNS enumeration endpoint"""
     try:
         payload = get_json_payload()
         if payload is None:
             return jsonify({"error": "Request body must be a JSON object"}), 400
-        domain = payload.get('domain')
-        
-        if not domain:
-            return jsonify({"error": "Domain is required"}), 400
-        
+        domain, error = validate_target(payload.get("domain"))
+        if error:
+            return jsonify({"error": error}), 400
+
         # Perform DNS enumeration
         results = recon_module.dns_enumeration(domain)
         
@@ -162,18 +252,21 @@ def dns_enumeration():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/vulnerability/scan', methods=['POST'])
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@require_api_token
 def vulnerability_scan():
     """Vulnerability scanning endpoint"""
     try:
         payload = get_json_payload()
         if payload is None:
             return jsonify({"error": "Request body must be a JSON object"}), 400
-        target = payload.get('target')
-        scan_type = payload.get('scan_type', 'basic')
-        
-        if not target:
-            return jsonify({"error": "Target is required"}), 400
-        
+        target, target_error = validate_target(payload.get("target"))
+        if target_error:
+            return jsonify({"error": target_error}), 400
+        scan_type = payload.get("scan_type", "basic")
+        if scan_type not in VALID_VULNERABILITY_SCAN_TYPES:
+            return jsonify({"error": "scan_type must be one of: basic, web, network, comprehensive"}), 400
+
         # Perform vulnerability scan
         results = vuln_scanner.scan_target(target, scan_type)
         
@@ -196,6 +289,8 @@ def vulnerability_scan():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/report/generate', methods=['POST'])
+@limiter.limit(os.environ.get("RATE_LIMIT_REPORT", "20 per minute"))
+@require_api_token
 def generate_report():
     """Generate scan report endpoint"""
     try:
@@ -223,6 +318,7 @@ def generate_report():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/report/download/<path:filename>', methods=['GET'])
+@require_api_token
 def download_report(filename):
     """Download a generated report from the configured reports directory."""
     reports_dir = os.environ.get('REPORTS_DIR', os.path.join(os.getcwd(), 'reports'))
@@ -232,6 +328,8 @@ def download_report(filename):
     return send_from_directory(reports_dir, safe_filename, as_attachment=True)
 
 @app.route('/api/ai/chat', methods=['POST'])
+@limiter.limit(os.environ.get("RATE_LIMIT_AI", "20 per minute"))
+@require_api_token
 def ai_chat():
     """AI assistant chat endpoint"""
     try:
@@ -256,36 +354,58 @@ def ai_chat():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@socketio.on('start_automated_scan')
+@socketio.on("connect")
+def authenticate_socket(auth):
+    """Reject WebSocket clients that do not present the configured API token."""
+    if not api_access_token:
+        return True
+    token = auth.get("token") if isinstance(auth, dict) else None
+    return bool(token and hmac.compare_digest(token, api_access_token))
+
+
+@socketio.on("start_automated_scan")
 def handle_automated_scan(data):
-    """Handle automated scan via WebSocket"""
+    """Run the selected, validated scan types for an authenticated socket client."""
     try:
-        target = data.get('target')
-        scan_types = data.get('scan_types', ['subdomain', 'port', 'vuln'])
-        
-        emit('scan_status', {'status': 'starting', 'message': f'Starting automated scan for {target}'})
-        
+        if not isinstance(data, dict):
+            emit("scan_error", {"error": "Scan request must be an object"})
+            return
+
+        target, target_error = validate_target(data.get("target"))
+        if target_error:
+            emit("scan_error", {"error": target_error})
+            return
+
+        scan_types = data.get("scan_types", ["subdomain", "port", "vuln"])
+        if not isinstance(scan_types, list) or not scan_types:
+            emit("scan_error", {"error": "scan_types must be a non-empty list"})
+            return
+        if any(scan_type not in VALID_AUTOMATED_SCAN_TYPES for scan_type in scan_types):
+            emit("scan_error", {"error": "scan_types contains an unsupported scan type"})
+            return
+
+        # Preserve selection order while avoiding duplicate work.
+        selected_scan_types = list(dict.fromkeys(scan_types))
+        emit("scan_status", {"status": "starting", "message": f"Starting automated scan for {target}"})
         results = {}
-        
-        # Perform each type of scan
-        for scan_type in scan_types:
-            emit('scan_status', {'status': 'running', 'message': f'Running {scan_type} scan...'})
-            
-            if scan_type == 'subdomain':
-                results['subdomains'] = recon_module.find_subdomains(target)
-            elif scan_type == 'port':
-                results['ports'] = recon_module.port_scan(target)
-            elif scan_type == 'vuln':
-                results['vulnerabilities'] = vuln_scanner.scan_target(target)
-        
-        # Get AI analysis of all results
-        ai_analysis = ai_assistant.analyze_comprehensive_scan(results)
-        results['ai_analysis'] = ai_analysis
-        
-        emit('scan_complete', {'results': results, 'target': target})
-        
-    except Exception as e:
-        emit('scan_error', {'error': str(e)})
+
+        for scan_type in selected_scan_types:
+            emit("scan_status", {"status": "running", "message": f"Running {scan_type} scan..."})
+            if scan_type == "subdomain":
+                results["subdomains"] = recon_module.find_subdomains(target)
+            elif scan_type == "port":
+                results["ports"] = recon_module.port_scan(target)
+            elif scan_type == "vuln":
+                results["vulnerabilities"] = vuln_scanner.scan_target(target)
+            elif scan_type == "dns":
+                results["dns"] = recon_module.dns_enumeration(target)
+
+        results["ai_analysis"] = ai_assistant.analyze_comprehensive_scan(results)
+        emit("scan_complete", {"results": results, "target": target})
+
+    except Exception:
+        app.logger.exception("Automated scan failed")
+        emit("scan_error", {"error": "Automated scan failed"})
 
 if __name__ == '__main__':
     # Create database tables

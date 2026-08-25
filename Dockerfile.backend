@@ -39,5 +39,5 @@ USER scanner
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/api/health || exit 1
 
-# Run the application
-CMD ["python", "app.py"]
+# Run a production WSGI server with a threaded worker compatible with Socket.IO.
+CMD ["gunicorn", "--worker-class", "gthread", "--workers", "1", "--threads", "100", "--bind", "0.0.0.0:5000", "app:app"]
