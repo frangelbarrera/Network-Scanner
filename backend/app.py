@@ -32,6 +32,13 @@ ai_assistant = AIAssistant()
 vuln_scanner = VulnScanner()
 report_generator = ReportGenerator()
 
+
+def get_json_payload():
+    """Return a JSON object body or None when the request body is invalid."""
+    payload = request.get_json(silent=True)
+    return payload if isinstance(payload, dict) else None
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -41,7 +48,9 @@ def health_check():
 def scan_subdomains():
     """Subdomain enumeration endpoint"""
     try:
-        payload = request.get_json()
+        payload = get_json_payload()
+        if payload is None:
+            return jsonify({"error": "Request body must be a JSON object"}), 400
         domain = payload.get('domain')
         
         if not domain:
@@ -67,7 +76,9 @@ def scan_subdomains():
 def scan_ports():
     """Port scanning endpoint"""
     try:
-        payload = request.get_json()
+        payload = get_json_payload()
+        if payload is None:
+            return jsonify({"error": "Request body must be a JSON object"}), 400
         target = payload.get('target')
         port_range = payload.get('port_range', '1-1000')
         
@@ -95,7 +106,9 @@ def scan_ports():
 def whois_lookup():
     """WHOIS lookup endpoint"""
     try:
-        payload = request.get_json()
+        payload = get_json_payload()
+        if payload is None:
+            return jsonify({"error": "Request body must be a JSON object"}), 400
         domain = payload.get('domain')
         
         if not domain:
@@ -117,7 +130,9 @@ def whois_lookup():
 def dns_enumeration():
     """DNS enumeration endpoint"""
     try:
-        payload = request.get_json()
+        payload = get_json_payload()
+        if payload is None:
+            return jsonify({"error": "Request body must be a JSON object"}), 400
         domain = payload.get('domain')
         
         if not domain:
@@ -143,7 +158,9 @@ def dns_enumeration():
 def vulnerability_scan():
     """Vulnerability scanning endpoint"""
     try:
-        payload = request.get_json()
+        payload = get_json_payload()
+        if payload is None:
+            return jsonify({"error": "Request body must be a JSON object"}), 400
         target = payload.get('target')
         scan_type = payload.get('scan_type', 'basic')
         
@@ -171,7 +188,9 @@ def vulnerability_scan():
 def generate_report():
     """Generate scan report endpoint"""
     try:
-        payload = request.get_json()
+        payload = get_json_payload()
+        if payload is None:
+            return jsonify({"error": "Request body must be a JSON object"}), 400
         scan_data = payload.get('scan_data')
         report_format = payload.get('format', 'html')
         
@@ -194,7 +213,9 @@ def generate_report():
 def ai_chat():
     """AI assistant chat endpoint"""
     try:
-        payload = request.get_json()
+        payload = get_json_payload()
+        if payload is None:
+            return jsonify({"error": "Request body must be a JSON object"}), 400
         message = payload.get('message')
         context = payload.get('context', {})
         

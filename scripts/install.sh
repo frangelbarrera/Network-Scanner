@@ -5,6 +5,8 @@
 
 set -e
 
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 echo "🛡️  Network Scanner Installation Script"
 echo "======================================="
 
@@ -60,7 +62,7 @@ sudo apt install -y \
 
 # Install Python dependencies
 print_status "Setting up Python virtual environment..."
-cd /workspaces/Network-Scanner/backend
+cd "${PROJECT_ROOT}/backend"
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
@@ -68,25 +70,25 @@ pip install -r requirements.txt
 
 # Install Node.js dependencies
 print_status "Installing Node.js dependencies..."
-cd /workspaces/Network-Scanner/frontend
+cd "${PROJECT_ROOT}/frontend"
 npm install
 
 # Install CLI dependencies
 print_status "Setting up CLI..."
-cd /workspaces/Network-Scanner/cli
+cd "${PROJECT_ROOT}/cli"
 pip3 install -r requirements.txt
 chmod +x network_scanner_cli.py
-sudo ln -sf $(pwd)/network_scanner_cli.py /usr/local/bin/network-scanner-cli
+sudo ln -sf "$(pwd)/network_scanner_cli.py" /usr/local/bin/network-scanner
 
 # Create necessary directories
 print_status "Creating directories..."
-mkdir -p /workspaces/Network-Scanner/reports
-mkdir -p /workspaces/Network-Scanner/logs
+mkdir -p "${PROJECT_ROOT}/reports"
+mkdir -p "${PROJECT_ROOT}/logs"
 
 # Set up environment file
-if [ ! -f /workspaces/Network-Scanner/.env ]; then
+if [ ! -f "${PROJECT_ROOT}/.env" ]; then
     print_status "Creating environment configuration..."
-    cp /workspaces/Network-Scanner/.env.example /workspaces/Network-Scanner/.env
+    cp "${PROJECT_ROOT}/.env.example" "${PROJECT_ROOT}/.env"
     print_warning "Please edit .env file with your configuration"
 fi
 
@@ -103,9 +105,9 @@ After=network.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=/workspaces/Network-Scanner/backend
-Environment=PATH=/workspaces/Network-Scanner/backend/venv/bin
-ExecStart=/workspaces/Network-Scanner/backend/venv/bin/python app.py
+WorkingDirectory=$PROJECT_ROOT/backend
+Environment=PATH=$PROJECT_ROOT/backend/venv/bin
+ExecStart=$PROJECT_ROOT/backend/venv/bin/python app.py
 Restart=always
 
 [Install]
@@ -126,11 +128,11 @@ sudo systemctl start redis-server
 
 # Build frontend
 print_status "Building frontend..."
-cd /workspaces/Network-Scanner/frontend
+cd "${PROJECT_ROOT}/frontend"
 npm run build
 
 # Make scripts executable
-chmod +x /workspaces/Network-Scanner/scripts/*
+chmod +x "${PROJECT_ROOT}"/scripts/*
 
 print_success "Installation completed!"
 echo ""

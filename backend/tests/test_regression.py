@@ -308,5 +308,58 @@ class TestNoUnusedImports(unittest.TestCase):
             )
 
 
+class TestJsonBodyValidation(unittest.TestCase):
+    """POST endpoints must reject malformed request bodies before any scan starts."""
+
+    @classmethod
+    def setUpClass(cls):
+        import types
+
+        nmap_mock = types.ModuleType('nmap')
+
+        class MockPortScanner:
+            def __init__(self):
+                pass
+
+        nmap_mock.PortScanner = MockPortScanner
+        sys.modules['nmap'] = nmap_mock
+
+        import app
+        cls.client = app.app.test_client()
+        cls.post_endpoints = [
+            '/api/scan/subdomain',
+            '/api/scan/ports',
+            '/api/scan/whois',
+            '/api/scan/dns',
+            '/api/vulnerability/scan',
+            '/api/report/generate',
+            '/api/ai/chat',
+        ]
+
+    def test_post_endpoints_reject_missing_json_body(self):
+        """An empty POST body must be a client error, not an internal error."""
+        for endpoint in self.post_endpoints:
+            with self.subTest(endpoint=endpoint):
+                response = self.client.post(endpoint)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.get_json(), {
+                    'error': 'Request body must be a JSON object'
+                })
+
+    def test_post_endpoints_reject_invalid_json_body(self):
+        """Malformed JSON must be rejected without invoking scan modules."""
+        for endpoint in self.post_endpoints:
+            with self.subTest(endpoint=endpoint):
+                response = self.client.post(
+                    endpoint,
+                    data='{',
+                    content_type='application/json'
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.get_json(), {
+                    'error': 'Request body must be a JSON object'
+                })
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
