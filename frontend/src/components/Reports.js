@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Card,
@@ -11,7 +11,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Chip,
   IconButton,
   Dialog,
@@ -30,16 +29,16 @@ import {
   Visibility as ViewIcon,
   Delete as DeleteIcon,
   Share as ShareIcon,
-  FilterList as FilterIcon,
   FileDownload as ExportIcon,
   Assessment as ReportIcon,
   Print as PrintIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { useScan } from '../context/ScanContext';
 
 const Reports = ({ showNotification }) => {
-  const { reports, generateReport, deleteReport, exportReport } = useScan();
-  const [filteredReports, setFilteredReports] = useState([]);
+  const { reports, deleteReport, exportReport } = useScan();
+  const navigate = useNavigate();
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReport, setSelectedReport] = useState(null);
@@ -48,29 +47,24 @@ const Reports = ({ showNotification }) => {
   const [reportToDelete, setReportToDelete] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    filterReports();
-  }, [reports, filterType, searchTerm]);
-
-  const filterReports = () => {
+  const filteredReports = useMemo(() => {
     let filtered = reports || [];
 
-    // Filter by type
     if (filterType !== 'all') {
-      filtered = filtered.filter(report => report.type === filterType);
+      filtered = filtered.filter((report) => report.type === filterType);
     }
 
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(report => 
-        report.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        report.target.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        report.description.toLowerCase().includes(searchTerm.toLowerCase())
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    if (normalizedSearch) {
+      filtered = filtered.filter((report) =>
+        [report.title, report.target, report.description]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(normalizedSearch))
       );
     }
 
-    setFilteredReports(filtered);
-  };
+    return filtered;
+  }, [reports, filterType, searchTerm]);
 
   const handleViewReport = (report) => {
     setSelectedReport(report);
@@ -151,7 +145,7 @@ const Reports = ({ showNotification }) => {
         <Button
           variant="contained"
           startIcon={<ReportIcon />}
-          onClick={() => {/* Navigate to scanner or trigger new report generation */}}
+          onClick={() => navigate('/scanner')}
         >
           Generate New Report
         </Button>

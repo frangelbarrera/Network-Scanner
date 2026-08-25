@@ -1,10 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import io from 'socket.io-client';
-import apiService from '../services/apiService';
+import apiService, { getApiAccessToken } from '../services/apiService';
 
 const ScanContext = createContext();
 const REPORTS_STORAGE_KEY = 'network-scanner-reports';
 const API_SETTINGS_STORAGE_KEY = 'network-scanner-api-settings';
+const VULNERABILITY_SCAN_TYPES = new Set(['basic', 'web', 'network', 'comprehensive', 'vulnerability']);
+
+const getSocketUrl = () => {
+  if (process.env.REACT_APP_SOCKET_URL) {
+    return process.env.REACT_APP_SOCKET_URL;
+  }
+  const configuredApiUrl = process.env.REACT_APP_API_URL;
+  return configuredApiUrl ? configuredApiUrl.replace(/\/api\/?$/, '') : undefined;
+};
 
 const readStoredArray = (key) => {
   try {
@@ -49,6 +58,7 @@ const normalizeAutomatedScan = (data) => {
       ? vulnerabilityData
       : vulnerabilityData.vulnerabilities || [],
     total_vulnerabilities: vulnerabilityData.total_vulnerabilities || 0,
+    dns_records: results.dns?.dns_records || results.dns || {},
     ai_analysis: results.ai_analysis || {},
     timestamp: data.timestamp || new Date().toISOString(),
   };
@@ -77,7 +87,10 @@ export const ScanProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000');
+    const newSocket = io(getSocketUrl(), {
+      path: '/socket.io',
+      auth: { token: getApiAccessToken() || undefined },
+    });
     setSocket(newSocket);
 
     newSocket.on('scan_status', (data) => {
@@ -96,10 +109,17 @@ export const ScanProvider = ({ children }) => {
 
     newSocket.on('scan_error', (data) => {
       console.error('Scan error:', data);
-      setScanProgress(null);
+      setScanProgress({ status: 'error', message: data?.error || 'Automated scan failed' });
     });
 
-    loadScanHistory();
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection failed:', error);
+      setScanProgress({ status: 'error', message: 'Unable to connect to the scan service' });
+    });
+
+    Promise.resolve(apiService.getScanHistory())
+      .then((history) => setScanHistory(Array.isArray(history) ? history : []))
+      .catch((error) => console.error('Failed to load scan history:', error));
 
     return () => {
       newSocket.disconnect();
@@ -109,7 +129,7 @@ export const ScanProvider = ({ children }) => {
   const loadScanHistory = async () => {
     try {
       const history = await apiService.getScanHistory();
-      setScanHistory(history);
+      setScanHistory(Array.isArray(history) ? history : []);
     } catch (error) {
       console.error('Failed to load scan history:', error);
     }
@@ -138,12 +158,13 @@ export const ScanProvider = ({ children }) => {
           result = await apiService.whoisLookup(target);
           break;
         case 'automated':
-          if (socket) {
-            socket.emit('start_automated_scan', {
-              target,
-              scan_types: options.scanTypes || ['subdomain', 'port', 'vuln'],
-            });
+          if (!socket) {
+            throw new Error('Scan connection is not ready');
           }
+          socket.emit('start_automated_scan', {
+            target,
+            scan_types: options.scanTypes || ['subdomain', 'port', 'vuln'],
+          });
           return;
         default:
           throw new Error(`Unsupported scan type: ${scanType}`);
@@ -169,7 +190,9 @@ export const ScanProvider = ({ children }) => {
         title: `Security report for ${scanData.target || scanData.domain || 'scan result'}`,
         description: `${format.toUpperCase()} report generated from the selected scan`,
         target: scanData.target || scanData.domain || 'Unknown',
-        type: scanData.scan_type === 'vulnerability' ? 'vulnerability_assessment' : 'reconnaissance',
+        type: VULNERABILITY_SCAN_TYPES.has(scanData.scan_type) || Array.isArray(scanData.vulnerabilities)
+          ? 'vulnerability_assessment'
+          : 'reconnaissance',
         findings_count: findings.length,
         max_severity: findings.some((finding) => finding.severity === 'Critical')
           ? 'Critical'
@@ -215,10 +238,17 @@ export const ScanProvider = ({ children }) => {
   };
 
   const updateApiSettings = async (settings) => {
-    const nextSettings = { ...apiSettings, ...settings };
+    const { api_access_token: accessToken, ...persistedSettings } = settings;
+    const nextSettings = { ...apiSettings, ...persistedSettings };
     setApiSettings(nextSettings);
     localStorage.setItem(API_SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
-    return apiService.updateUserSettings(nextSettings);
+    const result = await apiService.updateUserSettings({ ...persistedSettings, api_access_token: accessToken });
+
+    if (socket) {
+      socket.auth = { token: getApiAccessToken() || undefined };
+      socket.disconnect().connect();
+    }
+    return result;
   };
 
   const exportSettings = async () => ({

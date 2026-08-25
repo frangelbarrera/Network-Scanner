@@ -1,6 +1,17 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+const ACCESS_TOKEN_STORAGE_KEY = 'network-scanner-api-token';
+
+export const getApiAccessToken = () => sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+
+export const setApiAccessToken = (token) => {
+  if (token) {
+    sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+  } else {
+    sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  }
+};
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -13,7 +24,7 @@ const apiClient = axios.create({
 // Request interceptor for auth
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = getApiAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -29,8 +40,8 @@ apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('authToken');
-      window.location.href = '/login';
+      setApiAccessToken(null);
+      window.location.assign('/dashboard?sessionExpired=1');
     }
     return Promise.reject(error.response?.data || error.message);
   }
@@ -96,8 +107,11 @@ const apiService = {
   },
 
   updateUserSettings: (settings) => {
-    // Mock implementation
-    return Promise.resolve(settings);
+    if (Object.prototype.hasOwnProperty.call(settings, 'api_access_token')) {
+      setApiAccessToken(settings.api_access_token);
+    }
+    // User preferences remain local until server-side accounts are implemented.
+    return Promise.resolve({ ...settings, api_access_token: undefined });
   },
 
   // Project management (placeholder)
@@ -112,7 +126,8 @@ const apiService = {
       ...project,
       id: Date.now(),
       created_at: new Date().toISOString(),
-      scan_count: 0
+      scan_count: 0,
+      status: 'active'
     };
     projects.push(newProject);
     localStorage.setItem('projects', JSON.stringify(projects));

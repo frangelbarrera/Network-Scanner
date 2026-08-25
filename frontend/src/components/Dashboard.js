@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Grid,
   Card,
@@ -31,6 +31,7 @@ import {
   Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 import { useScan } from '../context/ScanContext';
 import apiService from '../services/apiService';
 
@@ -38,17 +39,14 @@ const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c'];
 
 const Dashboard = ({ showNotification }) => {
   const { scanHistory, startScan, scanProgress } = useScan();
+  const navigate = useNavigate();
   const [statistics, setStatistics] = useState(null);
   const [projects, setProjects] = useState([]);
   const [newProjectDialog, setNewProjectDialog] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', description: '', target: '' });
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       const [stats, projectsData] = await Promise.all([
@@ -62,7 +60,11 @@ const Dashboard = ({ showNotification }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNotification]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const handleCreateProject = async () => {
     try {
@@ -222,7 +224,7 @@ const Dashboard = ({ showNotification }) => {
                             color={scan.vulnerabilities.length > 5 ? 'error' : 'default'}
                           />
                         )}
-                        <IconButton size="small">
+                        <IconButton size="small" onClick={() => navigate('/results')} aria-label="View scan results">
                           <ViewIcon />
                         </IconButton>
                       </Box>

@@ -5,6 +5,7 @@ Network Scanner CLI - Command Line Interface for AI-Assisted Vulnerability Asses
 
 import argparse
 import json
+import os
 import sys
 import time
 import requests
@@ -16,13 +17,16 @@ from colorama import Fore, Back, Style
 colorama.init()
 
 class NetworkScannerCLI:
-    def __init__(self, api_url="http://localhost:5000/api"):
-        self.api_url = api_url
+    def __init__(self, api_url="http://localhost:5000/api", api_token=None):
+        normalized_url = api_url.rstrip("/")
+        self.api_url = normalized_url if normalized_url.endswith("/api") else f"{normalized_url}/api"
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
             'User-Agent': 'Network-Scanner-CLI/1.0'
         })
+        if api_token:
+            self.session.headers['Authorization'] = f"Bearer {api_token}"
 
     def print_banner(self):
         """Print Network Scanner banner"""
@@ -85,11 +89,11 @@ class NetworkScannerCLI:
 
         result = self.make_request("/scan/subdomain", {"domain": domain}, "POST")
         if not result:
-            return
+            return False
 
         if "error" in result:
             self.print_status(f"Scan failed: {result['error']}", "ERROR")
-            return
+            return False
 
         subdomains = result.get("subdomains", [])
         total = len(subdomains)
@@ -109,6 +113,7 @@ class NetworkScannerCLI:
         if output_file:
             self.save_results(result, output_file)
             self.print_status(f"Results saved to {output_file}", "SUCCESS")
+        return True
 
     def port_scan(self, target, port_range="1-1000", output_file=None):
         """Perform port scanning"""
@@ -120,11 +125,11 @@ class NetworkScannerCLI:
         }, "POST")
 
         if not result:
-            return
+            return False
 
         if "error" in result:
             self.print_status(f"Scan failed: {result['error']}", "ERROR")
-            return
+            return False
 
         scan_results = result.get("scan_results", [])
         total_ports = result.get("total_open_ports", 0)
@@ -148,6 +153,7 @@ class NetworkScannerCLI:
         if output_file:
             self.save_results(result, output_file)
             self.print_status(f"Results saved to {output_file}", "SUCCESS")
+        return True
 
     def vulnerability_scan(self, target, scan_type="basic", output_file=None):
         """Perform vulnerability scanning"""
@@ -159,11 +165,11 @@ class NetworkScannerCLI:
         }, "POST")
 
         if not result:
-            return
+            return False
 
         if "error" in result:
             self.print_status(f"Scan failed: {result['error']}", "ERROR")
-            return
+            return False
 
         vulnerabilities = result.get("vulnerabilities", [])
         total_vulns = len(vulnerabilities)
@@ -212,6 +218,7 @@ class NetworkScannerCLI:
         if output_file:
             self.save_results(result, output_file)
             self.print_status(f"Results saved to {output_file}", "SUCCESS")
+        return True
 
     def dns_enumeration(self, domain, output_file=None):
         """Perform DNS enumeration"""
@@ -219,11 +226,11 @@ class NetworkScannerCLI:
 
         result = self.make_request("/scan/dns", {"domain": domain}, "POST")
         if not result:
-            return
+            return False
 
         if "error" in result:
             self.print_status(f"Scan failed: {result['error']}", "ERROR")
-            return
+            return False
 
         dns_records = result.get("dns_records", {})
 
@@ -237,6 +244,7 @@ class NetworkScannerCLI:
         if output_file:
             self.save_results(result, output_file)
             self.print_status(f"Results saved to {output_file}", "SUCCESS")
+        return True
 
     def whois_lookup(self, domain, output_file=None):
         """Perform WHOIS lookup"""
@@ -244,11 +252,11 @@ class NetworkScannerCLI:
 
         result = self.make_request("/scan/whois", {"domain": domain}, "POST")
         if not result:
-            return
+            return False
 
         if "error" in result:
             self.print_status(f"Lookup failed: {result['error']}", "ERROR")
-            return
+            return False
 
         print(f"\n{Fore.CYAN}WHOIS Information for {domain}:{Style.RESET_ALL}")
 
@@ -274,6 +282,7 @@ class NetworkScannerCLI:
         if output_file:
             self.save_results(result, output_file)
             self.print_status(f"Results saved to {output_file}", "SUCCESS")
+        return True
 
     def print_ai_analysis(self, analysis):
         """Print AI analysis in a formatted way"""
@@ -335,13 +344,16 @@ class NetworkScannerCLI:
 
             if result and "report_path" in result:
                 self.print_status(f"Report generated: {result['report_path']}", "SUCCESS")
-            else:
-                self.print_status("Report generation failed", "ERROR")
+                return True
+            self.print_status("Report generation failed", "ERROR")
+            return False
 
         except FileNotFoundError:
             self.print_status(f"Scan data file not found: {scan_data_file}", "ERROR")
+            return False
         except Exception as e:
             self.print_status(f"Report generation error: {e}", "ERROR")
+            return False
 
 def main():
     parser = argparse.ArgumentParser(
@@ -360,7 +372,9 @@ Examples:
 
     # Global options
     parser.add_argument("--api-url", default="http://localhost:5000/api",
-                       help="Network Scanner API server URL")
+                       help="Network Scanner server URL (with or without /api)")
+    parser.add_argument("--api-token", default=os.environ.get("NETWORK_SCANNER_API_TOKEN"),
+                       help="Bearer token for a protected deployment (or set NETWORK_SCANNER_API_TOKEN)")
     parser.add_argument("--output", "-o", help="Save results to file")
     parser.add_argument("--quiet", "-q", action="store_true",
                        help="Quiet mode - minimal output")
@@ -405,7 +419,7 @@ Examples:
         sys.exit(1)
 
     # Initialize CLI
-    cli = NetworkScannerCLI(args.api_url)
+    cli = NetworkScannerCLI(args.api_url, args.api_token)
 
     if not args.quiet:
         cli.print_banner()
@@ -413,29 +427,24 @@ Examples:
     # Execute commands
     try:
         if args.command == "subdomain":
-            cli.subdomain_scan(args.domain, args.output)
-
+            success = cli.subdomain_scan(args.domain, args.output)
         elif args.command == "port":
-            cli.port_scan(args.target, args.port_range, args.output)
-
+            success = cli.port_scan(args.target, args.port_range, args.output)
         elif args.command == "vuln":
-            cli.vulnerability_scan(args.target, args.scan_type, args.output)
-
+            success = cli.vulnerability_scan(args.target, args.scan_type, args.output)
         elif args.command == "dns":
-            cli.dns_enumeration(args.domain, args.output)
-
+            success = cli.dns_enumeration(args.domain, args.output)
         elif args.command == "whois":
-            cli.whois_lookup(args.domain, args.output)
-
-        elif args.command == "report":
-            cli.generate_report(args.data_file, args.format)
-
+            success = cli.whois_lookup(args.domain, args.output)
+        else:
+            success = cli.generate_report(args.data_file, args.format)
+        return 0 if success else 1
     except KeyboardInterrupt:
         cli.print_status("Scan interrupted by user", "WARNING")
-        sys.exit(1)
+        return 1
     except Exception as e:
         cli.print_status(f"Unexpected error: {e}", "ERROR")
-        sys.exit(1)
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

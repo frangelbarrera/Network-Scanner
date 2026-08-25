@@ -30,7 +30,6 @@ import {
   Help as HelpIcon,
   ExpandMore as ExpandMoreIcon,
   Launch as LaunchIcon,
-  YouTube as YouTubeIcon,
   MenuBook as BookIcon,
   Code as CodeIcon
 } from '@mui/icons-material';
@@ -38,8 +37,8 @@ import {
 const Help = () => {
   const quickStartSteps = [
     {
-      title: "1. Configure AI Assistant",
-      description: "Add your OpenAI API key in Settings to enable intelligent analysis",
+      title: "1. Configure Service Access",
+      description: "Enter the operator-provided API access token for this browser session",
       icon: <ApiIcon color="primary" />
     },
     {

@@ -6,8 +6,7 @@ import {
   Typography,
   Grid,
   Button,
-  Paper,
-  Link
+  Paper
 } from '@mui/material';
 import {
   Security as SecurityIcon,

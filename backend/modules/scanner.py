@@ -100,27 +100,11 @@ class VulnScanner:
                 service = port_info['service'].lower()
                 port = port_info['port']
                 
-                # Check for default credentials
-                if service in ['ssh', 'ftp', 'telnet', 'http', 'https']:
-                    vuln = self._check_default_credentials(target, port, service)
-                    if vuln:
-                        vulnerabilities.append(vuln)
-                
-                # Check for anonymous access
+                # Anonymous FTP is the only authentication condition verified by
+                # this scanner. Do not report default credentials, SMTP relays, or
+                # SSH configuration without a protocol-specific confirmation.
                 if service == 'ftp':
                     vuln = self._check_anonymous_ftp(target, port)
-                    if vuln:
-                        vulnerabilities.append(vuln)
-                
-                # Check for open SMTP relay
-                if service == 'smtp':
-                    vuln = self._check_smtp_relay(target, port)
-                    if vuln:
-                        vulnerabilities.append(vuln)
-                        
-                # Check for weak SSH configuration
-                if service == 'ssh':
-                    vuln = self._check_ssh_config(target, port)
                     if vuln:
                         vulnerabilities.append(vuln)
             
@@ -297,28 +281,6 @@ class VulnScanner:
         
         return vulnerabilities
     
-    def _check_default_credentials(self, target, port, service):
-        """Check for default credentials"""
-        # This is a simplified check - in practice, you'd test actual credentials
-        common_defaults = {
-            'ssh': [('root', 'root'), ('admin', 'admin'), ('root', '')],
-            'ftp': [('anonymous', ''), ('ftp', 'ftp')],
-            'http': [('admin', 'admin'), ('admin', 'password')]
-        }
-        
-        if service in common_defaults:
-            return {
-                'type': 'Authentication',
-                'severity': 'High',
-                'title': 'Potential Default Credentials',
-                'description': f'{service.upper()} service may be using default credentials',
-                'recommendation': 'Test for default credentials and change if found',
-                'port': port,
-                'service': service.upper()
-            }
-        
-        return None
-    
     def _check_anonymous_ftp(self, target, port):
         """Check for anonymous FTP access"""
         try:
@@ -340,31 +302,6 @@ class VulnScanner:
             
         except Exception:
             return None
-    
-    def _check_smtp_relay(self, target, port):
-        """Check for open SMTP relay"""
-        # Simplified check - would need more comprehensive testing
-        return {
-            'type': 'Mail Security',
-            'severity': 'Medium',
-            'title': 'Potential SMTP Relay',
-            'description': 'SMTP server should be tested for open relay configuration',
-            'recommendation': 'Verify SMTP relay restrictions are properly configured',
-            'port': port,
-            'service': 'SMTP'
-        }
-    
-    def _check_ssh_config(self, target, port):
-        """Check SSH configuration"""
-        return {
-            'type': 'SSH Security',
-            'severity': 'Low',
-            'title': 'SSH Configuration Review',
-            'description': 'SSH service detected - configuration should be reviewed',
-            'recommendation': 'Disable root login, use key-based auth, change default port',
-            'port': port,
-            'service': 'SSH'
-        }
     
     def _check_info_disclosure(self, url, response):
         """Check for information disclosure"""

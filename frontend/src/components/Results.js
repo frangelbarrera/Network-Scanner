@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
   CardContent,
   Typography,
   List,
-  ListItem,
-  ListItemText,
   Chip,
   Button,
   Grid,
@@ -29,7 +27,6 @@ import {
   Visibility as ViewIcon,
   Download as DownloadIcon,
   Delete as DeleteIcon,
-  FilterList as FilterIcon,
   ExpandMore as ExpandMoreIcon,
   BugReport as BugIcon,
   Security as SecurityIcon
@@ -63,14 +60,17 @@ const Results = ({ showNotification }) => {
     }
   };
 
-  const filteredResults = scanHistory.filter(result => {
-    const matchesFilter = filter === 'all' || 
-      (result.scan_type && result.scan_type.toLowerCase().includes(filter.toLowerCase()));
-    
-    const matchesSearch = !searchTerm || 
-      (result.domain && result.domain.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (result.target && result.target.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+  const filteredResults = scanHistory.filter((result) => {
+    const scanType = result.scan_type?.toLowerCase() || '';
+    const isVulnerabilityScan = ['vulnerability', 'basic', 'web', 'network', 'comprehensive'].includes(scanType)
+      || Array.isArray(result.vulnerabilities);
+    const matchesFilter = filter === 'all'
+      || (filter === 'vulnerability' ? isVulnerabilityScan : scanType.includes(filter));
+
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const matchesSearch = !normalizedSearch
+      || [result.domain, result.target].filter(Boolean).some((value) => value.toLowerCase().includes(normalizedSearch));
+
     return matchesFilter && matchesSearch;
   });
 

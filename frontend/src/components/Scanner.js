@@ -12,7 +12,6 @@ import {
   MenuItem,
   Chip,
   Grid,
-  Paper,
   Alert,
   LinearProgress,
   Tabs,

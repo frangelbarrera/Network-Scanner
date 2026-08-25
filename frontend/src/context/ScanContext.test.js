@@ -18,6 +18,7 @@ jest.mock('socket.io-client', () => () => {
 
 jest.mock('../services/apiService', () => ({
   __esModule: true,
+  getApiAccessToken: jest.fn(() => null),
   default: {
     getScanHistory: jest.fn(),
     saveScanResult: jest.fn(),
