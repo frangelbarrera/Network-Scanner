@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 from flask_sqlalchemy import SQLAlchemy
@@ -62,9 +62,12 @@ def scan_subdomains():
         # Get AI analysis
         ai_analysis = ai_assistant.analyze_subdomains(results)
         
+        subdomain_data = results if isinstance(results, dict) else {}
         return jsonify({
             "domain": domain,
-            "subdomains": results,
+            "subdomains": subdomain_data.get("subdomains", results if isinstance(results, list) else []),
+            "total_found": subdomain_data.get("total_found", 0),
+            "subdomain_data": subdomain_data,
             "ai_analysis": ai_analysis,
             "timestamp": datetime.utcnow().isoformat()
         })
@@ -91,10 +94,14 @@ def scan_ports():
         # Get AI analysis
         ai_analysis = ai_assistant.analyze_ports(results)
         
+        port_data = results if isinstance(results, dict) else {}
         return jsonify({
             "target": target,
             "port_range": port_range,
             "open_ports": results,
+            "scan_results": port_data.get("scan_results", []),
+            "total_open_ports": port_data.get("total_open_ports", 0),
+            "port_data": port_data,
             "ai_analysis": ai_analysis,
             "timestamp": datetime.utcnow().isoformat()
         })
@@ -173,10 +180,14 @@ def vulnerability_scan():
         # Get AI analysis and recommendations
         ai_analysis = ai_assistant.analyze_vulnerabilities(results)
         
+        vulnerability_data = results if isinstance(results, dict) else {}
         return jsonify({
             "target": target,
             "scan_type": scan_type,
-            "vulnerabilities": results,
+            "vulnerabilities": vulnerability_data.get("vulnerabilities", results if isinstance(results, list) else []),
+            "total_vulnerabilities": vulnerability_data.get("total_vulnerabilities", 0),
+            "severity_breakdown": vulnerability_data.get("severity_breakdown", {}),
+            "vulnerability_data": vulnerability_data,
             "ai_analysis": ai_analysis,
             "timestamp": datetime.utcnow().isoformat()
         })
@@ -194,20 +205,31 @@ def generate_report():
         scan_data = payload.get('scan_data')
         report_format = payload.get('format', 'html')
         
-        if not scan_data:
-            return jsonify({"error": "Scan data is required"}), 400
+        if not isinstance(scan_data, dict) or not scan_data:
+            return jsonify({"error": "Scan data must be a non-empty JSON object"}), 400
+        if not isinstance(report_format, str) or report_format.lower() not in {"html", "pdf"}:
+            return jsonify({"error": "Format must be either html or pdf"}), 400
         
         # Generate report
-        report_path = report_generator.generate_report(scan_data, report_format)
+        report_path = report_generator.generate_report(scan_data, report_format.lower())
         
         return jsonify({
             "report_path": report_path,
-            "format": report_format,
+            "format": report_format.lower(),
             "timestamp": datetime.utcnow().isoformat()
         })
     
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/report/download/<path:filename>', methods=['GET'])
+def download_report(filename):
+    """Download a generated report from the configured reports directory."""
+    reports_dir = os.environ.get('REPORTS_DIR', os.path.join(os.getcwd(), 'reports'))
+    safe_filename = os.path.basename(filename)
+    if safe_filename != filename:
+        return jsonify({"error": "Invalid report filename"}), 400
+    return send_from_directory(reports_dir, safe_filename, as_attachment=True)
 
 @app.route('/api/ai/chat', methods=['POST'])
 def ai_chat():

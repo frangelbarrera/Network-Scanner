@@ -62,6 +62,13 @@ const apiService = {
   generateReport: (scanData, format = 'html') =>
     apiClient.post('/report/generate', { scan_data: scanData, format }),
 
+  downloadReport: (reportPath) => {
+    const filename = String(reportPath).split('/').pop();
+    return apiClient.get(`/report/download/${encodeURIComponent(filename)}`, {
+      responseType: 'blob',
+    });
+  },
+
   // Mock endpoints for scan history (would be real database calls)
   getScanHistory: async () => {
     // This would be a real API call in production

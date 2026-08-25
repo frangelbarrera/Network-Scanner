@@ -56,10 +56,10 @@ const Results = ({ showNotification }) => {
 
   const handleGenerateReport = async (result) => {
     try {
-      const reportPath = await generateReport(result, 'html');
-      showNotification(`Report generated: ${reportPath}`, 'success');
+      const report = await generateReport(result, 'html');
+      showNotification(`Report generated: ${report.report_path}`, 'success');
     } catch (error) {
-      showNotification(`Report generation failed: ${error.message}`, 'error');
+      showNotification(`Report generation failed: ${error?.error || error?.message || error}`, 'error');
     }
   };
 

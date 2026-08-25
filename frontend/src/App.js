@@ -209,12 +209,12 @@ function App() {
           <Container maxWidth="xl" sx={{ mt: 2 }}>
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard showAlert={showAlert} />} />
-              <Route path="/scanner" element={<Scanner showAlert={showAlert} />} />
-              <Route path="/results" element={<Results showAlert={showAlert} />} />
-              <Route path="/reports" element={<Reports showAlert={showAlert} />} />
-              <Route path="/ai-assistant" element={<AIAssistant showAlert={showAlert} />} />
-              <Route path="/settings" element={<Settings showAlert={showAlert} />} />
+              <Route path="/dashboard" element={<Dashboard showNotification={showAlert} />} />
+              <Route path="/scanner" element={<Scanner showNotification={showAlert} />} />
+              <Route path="/results" element={<Results showNotification={showAlert} />} />
+              <Route path="/reports" element={<Reports showNotification={showAlert} />} />
+              <Route path="/ai-assistant" element={<AIAssistant showNotification={showAlert} />} />
+              <Route path="/settings" element={<Settings showNotification={showAlert} />} />
               <Route path="/help" element={<Help />} />
               <Route path="/about" element={<Donate />} />
             </Routes>

@@ -4,7 +4,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from jinja2 import Template
+from jinja2 import Environment
 import json
 import os
 from datetime import datetime
@@ -108,7 +108,8 @@ class ReportGenerator:
         
         if isinstance(scan_data, dict):
             if 'vulnerabilities' in scan_data:
-                vulns = scan_data['vulnerabilities'].get('vulnerabilities', [])
+                vuln_data = scan_data['vulnerabilities']
+                vulns = vuln_data if isinstance(vuln_data, list) else vuln_data.get('vulnerabilities', [])
                 total_vulnerabilities = len(vulns)
                 for vuln in vulns:
                     if vuln.get('severity') == 'Critical':
@@ -176,14 +177,14 @@ class ReportGenerator:
     
     def _add_vulnerability_section_pdf(self, story, vuln_data):
         """Add vulnerability section to PDF"""
-        vulnerabilities = vuln_data.get('vulnerabilities', [])
+        vulnerabilities = vuln_data if isinstance(vuln_data, list) else vuln_data.get('vulnerabilities', [])
         
         if not vulnerabilities:
             story.append(Paragraph("No vulnerabilities detected.", self.styles['Normal']))
             return
         
         # Severity breakdown
-        severity_breakdown = vuln_data.get('severity_breakdown', {})
+        severity_breakdown = vuln_data.get('severity_breakdown', {}) if isinstance(vuln_data, dict) else {}
         if severity_breakdown:
             story.append(Paragraph("Severity Breakdown", self.subheading_style))
             
@@ -230,7 +231,7 @@ class ReportGenerator:
             subdomain_data = scan_data['subdomains']
             story.append(Paragraph("Subdomain Enumeration", self.subheading_style))
             
-            subdomains = subdomain_data.get('subdomains', [])
+            subdomains = subdomain_data if isinstance(subdomain_data, list) else subdomain_data.get('subdomains', [])
             total_found = len(subdomains)
             
             story.append(Paragraph(f"Total subdomains found: {total_found}", self.styles['Normal']))
@@ -246,8 +247,8 @@ class ReportGenerator:
             
             story.append(Spacer(1, 15))
         
-        if 'ports' in scan_data:
-            port_data = scan_data['ports']
+        if 'ports' in scan_data or 'scan_results' in scan_data:
+            port_data = scan_data.get('ports', scan_data)
             story.append(Paragraph("Port Scan Results", self.subheading_style))
             
             total_ports = port_data.get('total_open_ports', 0)
@@ -647,7 +648,7 @@ class ReportGenerator:
         template_data = self._prepare_template_data(scan_data)
         
         # Render HTML
-        template = Template(html_template)
+        template = Environment(autoescape=True).from_string(html_template)
         html_content = template.render(**template_data)
         
         # Save to file
@@ -671,11 +672,14 @@ class ReportGenerator:
         }
         
         # Extract vulnerabilities
-        if 'vulnerabilities' in scan_data and isinstance(scan_data['vulnerabilities'], dict):
+        if 'vulnerabilities' in scan_data:
             vuln_data = scan_data['vulnerabilities']
-            data['vulnerabilities'] = vuln_data.get('vulnerabilities', [])
+            if isinstance(vuln_data, list):
+                data['vulnerabilities'] = vuln_data
+            elif isinstance(vuln_data, dict):
+                data['vulnerabilities'] = vuln_data.get('vulnerabilities', [])
+                data['severity_breakdown'] = vuln_data.get('severity_breakdown', {})
             data['total_vulnerabilities'] = len(data['vulnerabilities'])
-            data['severity_breakdown'] = vuln_data.get('severity_breakdown', {})
             
             # Determine overall risk
             critical_count = data['severity_breakdown'].get('Critical', 0)
@@ -691,12 +695,14 @@ class ReportGenerator:
                 data['overall_risk'] = 'Low'
         
         # Extract subdomain data
-        if 'subdomains' in scan_data and isinstance(scan_data['subdomains'], dict):
-            data['subdomains'] = scan_data['subdomains'].get('subdomains', [])
+        if 'subdomains' in scan_data:
+            subdomain_data = scan_data['subdomains']
+            data['subdomains'] = subdomain_data if isinstance(subdomain_data, list) else subdomain_data.get('subdomains', [])
         
         # Extract port data
-        if 'ports' in scan_data and isinstance(scan_data['ports'], dict):
-            port_results = scan_data['ports'].get('scan_results', [])
+        if 'ports' in scan_data or 'scan_results' in scan_data:
+            port_data = scan_data.get('ports', scan_data)
+            port_results = port_data.get('scan_results', [])
             for host in port_results:
                 data['open_ports'].extend(host.get('open_ports', []))
         
