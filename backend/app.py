@@ -27,8 +27,11 @@ PORT_RANGE_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
 app = Flask(__name__)
 is_production = os.environ.get("FLASK_ENV") == "production"
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-key-change-in-production")
-if is_production and app.config["SECRET_KEY"] in PRODUCTION_SECRET_PLACEHOLDERS:
-    raise RuntimeError("SECRET_KEY must be a strong, unique value in production")
+if is_production and (
+    app.config["SECRET_KEY"] in PRODUCTION_SECRET_PLACEHOLDERS
+    or len(app.config["SECRET_KEY"]) < 32
+):
+    raise RuntimeError("SECRET_KEY must be a unique value of at least 32 characters in production")
 
 api_access_token = os.environ.get("API_ACCESS_TOKEN", "")
 if is_production and not api_access_token:
@@ -49,8 +52,22 @@ socketio = SocketIO(
     async_mode=os.environ.get("SOCKETIO_ASYNC_MODE", "threading"),
     **socketio_options,
 )
+def rate_limit_key():
+    """Use the authenticated token when present; otherwise limit by source IP."""
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if (
+        api_access_token
+        and scheme.lower() == "bearer"
+        and token
+        and hmac.compare_digest(token, api_access_token)
+    ):
+        return f"token:{api_access_token}"
+    return get_remote_address()
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=rate_limit_key,
     app=app,
     default_limits=[os.environ.get("RATE_LIMIT_DEFAULT", "60 per minute")],
     storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),

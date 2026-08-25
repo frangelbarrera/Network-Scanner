@@ -24,6 +24,12 @@ class TestProductionConfiguration(unittest.TestCase):
     def test_compose_placeholder_is_listed_as_invalid_production_secret(self):
         self.assertIn("your-secret-key-change-this", application.PRODUCTION_SECRET_PLACEHOLDERS)
 
+    def test_production_secret_has_a_minimum_length_check(self):
+        app_path = os.path.join(os.path.dirname(__file__), '..', 'app.py')
+        with open(app_path, encoding='utf-8') as app_file:
+            source = app_file.read()
+        self.assertIn('len(app.config["SECRET_KEY"]) < 32', source)
+
     def test_compose_requires_independent_api_token(self):
         compose_path = os.path.join(os.path.dirname(__file__), '..', '..', 'docker-compose.yml')
         with open(compose_path, encoding='utf-8') as compose_file:
@@ -31,6 +37,7 @@ class TestProductionConfiguration(unittest.TestCase):
         self.assertIn('API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:?', compose)
         self.assertNotIn('"5000:5000"', compose)
         self.assertNotIn('"443:443"', compose)
+        self.assertIn('"127.0.0.1:80:80"', compose)
 
 
 class TestApiValidation(unittest.TestCase):
