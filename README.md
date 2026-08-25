@@ -44,7 +44,7 @@ List of generated security assessment reports. Filter by type, search by target,
 ### Settings
 ![Settings](docs/screenshots/settings.png)
 
-Configure API keys, default scan parameters, report format, security options, and advanced behaviour. Settings persist across sessions via the browser.
+Configure browser-local preferences, report defaults, and the session-only API access token. AI provider credentials are configured server-side by the operator.
 
 ### Sample HTML Report
 ![Sample Report](docs/screenshots/sample-report.png)
@@ -102,9 +102,10 @@ chmod +x network_scanner_cli.py
 ### Configuration
 
 ```bash
-# Copy and edit environment file
+# Copy and edit the environment file. Never commit .env.
 cp .env.example .env
-# Edit .env with your settings (API keys, database config, etc.)
+# Generate independent production values with: openssl rand -hex 32
+# Set SECRET_KEY, API_ACCESS_TOKEN, REDIS_PASSWORD, and (if enabled) POSTGRES_PASSWORD.
 ```
 
 ### Running Network Scanner
@@ -114,7 +115,8 @@ cp .env.example .env
 cd backend
 source venv/bin/activate
 python app.py
-# API available at http://localhost:5000
+# API available at http://localhost:5000/api
+# Development mode does not require an API token. Production does.
 ```
 
 **Start the Frontend (new terminal):**
@@ -133,7 +135,20 @@ python cli/network_scanner_cli.py --help
 python cli/network_scanner_cli.py subdomain example.com
 python cli/network_scanner_cli.py port 192.168.1.1 --port-range 1-1000
 python cli/network_scanner_cli.py vuln https://example.com --scan-type web
+# For protected deployments, set NETWORK_SCANNER_API_TOKEN or pass --api-token before the subcommand.
 ```
+
+### Docker Compose Deployment
+
+Docker Compose exposes only the Nginx proxy, bound to `127.0.0.1:80`. The backend, frontend, Redis, and optional PostgreSQL service remain on the internal Docker network. Configure `.env` first, then start the stack:
+
+```bash
+docker compose up --build -d
+# Optional PostgreSQL profile:
+docker compose --profile postgres up --build -d
+```
+
+Deploy TLS at a managed load balancer or reverse proxy that terminates HTTPS and forwards only to `127.0.0.1:80`. The bundled Nginx configuration intentionally does not claim to provide TLS on port 443; do not publish its HTTP listener directly to the Internet. In production, enter the value of `API_ACCESS_TOKEN` in **Settings → Service Access** for each browser session, or use `NETWORK_SCANNER_API_TOKEN` with the CLI.
 
 ##  Usage Examples
 
@@ -149,19 +164,19 @@ python cli/network_scanner_cli.py vuln https://example.com --scan-type web
 
 ```bash
 # Comprehensive subdomain enumeration
-python cli/network_scanner_cli.py subdomain target.com --output results.json
+python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" subdomain target.com --output results.json
 
 # Port scan with custom range
-python cli/network_scanner_cli.py port 10.0.0.1 --port-range 1-65535
+python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" port 10.0.0.1 --port-range 1-65535
 
 # Web application vulnerability assessment
-python cli/network_scanner_cli.py vuln https://target.com --scan-type comprehensive
+python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" vuln https://target.com --scan-type comprehensive
 
 # DNS reconnaissance
-python cli/network_scanner_cli.py dns target.com
+python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" dns target.com
 
 # Generate professional report
-python cli/network_scanner_cli.py report results.json --format pdf
+python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" report results.json --format pdf
 ```
 
 ### API Usage
@@ -170,12 +185,15 @@ python cli/network_scanner_cli.py report results.json --format pdf
 import requests
 
 # Start a subdomain scan
+headers = {'Authorization': 'Bearer <API_ACCESS_TOKEN>'}
 response = requests.post('http://localhost:5000/api/scan/subdomain',
+                        headers=headers,
                         json={'domain': 'example.com'})
 result = response.json()
 
 # Get AI analysis
 ai_response = requests.post('http://localhost:5000/api/ai/chat',
+                           headers=headers,
                            json={'message': 'Explain this vulnerability',
                                 'context': result})
 ```
@@ -205,7 +223,7 @@ Network-Scanner/
 - **AI Assistant**: OpenAI integration for intelligent analysis and recommendations
 - **Vulnerability Scanner**: Web app and network service security assessment
 - **Report Generator**: Professional PDF/HTML report creation
-- **Multi-user System**: Authentication, projects, and audit logging
+- **Access Control**: Token-gated production API and browser-local project preferences
 
 ##  Scan Types
 
@@ -255,7 +273,7 @@ Generate professional security reports in multiple formats:
 
 - **HTML Reports**: Interactive web-based reports with charts
 - **PDF Reports**: Professional documents for stakeholders
-- **JSON Exports**: Machine-readable data for integration
+- **JSON Scan Results**: CLI output can be saved as machine-readable data for integration
 - **Executive Summaries**: High-level findings for management
 
 ##  Security Considerations
@@ -286,7 +304,8 @@ cd frontend && npm install && cd ..
 
 # Run the regression tests
 cd backend
-python -m unittest tests.test_regression -v
+pytest -q
+python -m unittest ../cli/test_network_scanner_cli.py -v
 ```
 
 ##  Support
