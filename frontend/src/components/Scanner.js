@@ -88,7 +88,8 @@ const Scanner = ({ showNotification }) => {
       await startScan(scanTypeToUse, target, options);
       showNotification(`${scanTypeToUse} scan started successfully`, 'success');
     } catch (error) {
-      showNotification(`Scan failed: ${error.message}`, 'error');
+      const message = error?.error || error?.message || 'Unexpected scan error';
+      showNotification(`Scan failed: ${message}`, 'error');
     } finally {
       setIsScanning(false);
     }
