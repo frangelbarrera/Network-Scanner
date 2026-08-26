@@ -157,16 +157,15 @@ class ReconModule:
         try:
             print(f"[INFO] Starting port scan on {target} (ports {port_range})")
             
-            # Parse port range
-            if '-' in port_range:
-                start_port, end_port = map(int, port_range.split('-'))
-                ports = f"{start_port}-{end_port}"
-            else:
-                ports = port_range
-            
-            # Perform the scan
-            self.nm.scan(target, ports, arguments='-sS -sV -O')
-            
+            # The API validator already accepts Nmap's numeric single-port,
+            # range, and comma-separated range syntax. Preserve that validated
+            # expression so values such as "1-2,80" reach Nmap unchanged.
+            scan_output = self.nm.scan(target, port_range, arguments='--privileged -sS -sV -O')
+            scan_error = scan_output.get('nmap', {}).get('scaninfo', {}).get('error')
+            if scan_error:
+                message = ''.join(scan_error) if isinstance(scan_error, list) else str(scan_error)
+                raise RuntimeError(f"Nmap execution failed: {message.strip()}")
+
             results = []
             for host in self.nm.all_hosts():
                 host_info = {

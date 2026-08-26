@@ -40,6 +40,8 @@ services:
       HOST: 0.0.0.0
       REPORTS_DIR: /app/reports
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+    cap_add:
+      - NET_RAW
     volumes:
       - ./reports:/app/reports
       - ./logs:/app/logs

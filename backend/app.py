@@ -3,7 +3,7 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO, emit
-from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
 from functools import wraps
 import hmac
 import os
@@ -11,10 +11,20 @@ import re
 from datetime import datetime
 
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+
 PRODUCTION_SECRET_PLACEHOLDERS = {
     "",
     "dev-key-change-in-production",
     "your-secret-key-change-this",
+    "replace-with-a-random-secret-key-at-least-32-characters",
+    "change-this",
+    "secret",
+}
+PRODUCTION_API_TOKEN_PLACEHOLDERS = {
+    "",
+    "replace-with-a-separate-random-api-access-token",
     "change-this",
     "secret",
 }
@@ -34,8 +44,8 @@ if is_production and (
     raise RuntimeError("SECRET_KEY must be a unique value of at least 32 characters in production")
 
 api_access_token = os.environ.get("API_ACCESS_TOKEN", "")
-if is_production and not api_access_token:
-    raise RuntimeError("API_ACCESS_TOKEN must be set in production")
+if is_production and api_access_token in PRODUCTION_API_TOKEN_PLACEHOLDERS:
+    raise RuntimeError("API_ACCESS_TOKEN must be a unique value in production")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///network_scanner.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -72,7 +82,8 @@ limiter = Limiter(
     default_limits=[os.environ.get("RATE_LIMIT_DEFAULT", "60 per minute")],
     storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
 )
-db = SQLAlchemy(app)
+from extensions import db
+db.init_app(app)
 
 
 # Import modules
@@ -93,6 +104,26 @@ def get_json_payload():
     """Return a JSON object body or None when the request body is invalid."""
     payload = request.get_json(silent=True)
     return payload if isinstance(payload, dict) else None
+
+
+def get_scan_error(result):
+    """Return an explicit module failure message, preserving legitimate empty results."""
+    if isinstance(result, dict) and result.get("error"):
+        return str(result["error"])
+    return None
+
+
+def scan_failure_response(result, target, scan_name):
+    """Convert an explicit scanner-module failure into a consistent API error."""
+    error = get_scan_error(result)
+    if not error:
+        return None
+    app.logger.error("%s failed for %s: %s", scan_name, target, error)
+    return jsonify({
+        "error": f"{scan_name} failed",
+        "details": error,
+        "target": target,
+    }), 502
 
 
 def require_api_token(view):
@@ -160,7 +191,10 @@ def scan_subdomains():
 
         # Perform subdomain scan
         results = recon_module.find_subdomains(domain)
-        
+        failure_response = scan_failure_response(results, domain, "Subdomain enumeration")
+        if failure_response:
+            return failure_response
+
         # Get AI analysis
         ai_analysis = ai_assistant.analyze_subdomains(results)
         
@@ -195,7 +229,10 @@ def scan_ports():
 
         # Perform port scan
         results = recon_module.port_scan(target, port_range)
-        
+        failure_response = scan_failure_response(results, target, "Port scan")
+        if failure_response:
+            return failure_response
+
         # Get AI analysis
         ai_analysis = ai_assistant.analyze_ports(results)
         
@@ -229,7 +266,10 @@ def whois_lookup():
 
         # Perform WHOIS lookup
         results = recon_module.whois_lookup(domain)
-        
+        failure_response = scan_failure_response(results, domain, "WHOIS lookup")
+        if failure_response:
+            return failure_response
+
         return jsonify({
             "domain": domain,
             "whois_data": results,
@@ -254,7 +294,10 @@ def dns_enumeration():
 
         # Perform DNS enumeration
         results = recon_module.dns_enumeration(domain)
-        
+        failure_response = scan_failure_response(results, domain, "DNS enumeration")
+        if failure_response:
+            return failure_response
+
         # Get AI analysis
         ai_analysis = ai_assistant.analyze_dns(results)
         
@@ -286,7 +329,10 @@ def vulnerability_scan():
 
         # Perform vulnerability scan
         results = vuln_scanner.scan_target(target, scan_type)
-        
+        failure_response = scan_failure_response(results, target, "Vulnerability scan")
+        if failure_response:
+            return failure_response
+
         # Get AI analysis and recommendations
         ai_analysis = ai_assistant.analyze_vulnerabilities(results)
         
@@ -409,13 +455,28 @@ def handle_automated_scan(data):
         for scan_type in selected_scan_types:
             emit("scan_status", {"status": "running", "message": f"Running {scan_type} scan..."})
             if scan_type == "subdomain":
-                results["subdomains"] = recon_module.find_subdomains(target)
+                scan_result = recon_module.find_subdomains(target)
+                result_key = "subdomains"
             elif scan_type == "port":
-                results["ports"] = recon_module.port_scan(target)
+                scan_result = recon_module.port_scan(target)
+                result_key = "ports"
             elif scan_type == "vuln":
-                results["vulnerabilities"] = vuln_scanner.scan_target(target)
+                scan_result = vuln_scanner.scan_target(target)
+                result_key = "vulnerabilities"
             elif scan_type == "dns":
-                results["dns"] = recon_module.dns_enumeration(target)
+                scan_result = recon_module.dns_enumeration(target)
+                result_key = "dns"
+
+            scan_error = get_scan_error(scan_result)
+            if scan_error:
+                app.logger.error("Automated %s scan failed for %s: %s", scan_type, target, scan_error)
+                emit("scan_error", {
+                    "error": f"{scan_type} scan failed",
+                    "details": scan_error,
+                    "scan_type": scan_type,
+                })
+                return
+            results[result_key] = scan_result
 
         results["ai_analysis"] = ai_assistant.analyze_comprehensive_scan(results)
         emit("scan_complete", {"results": results, "target": target})

@@ -7,10 +7,12 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     nmap \
+    libcap2-bin \
     dnsutils \
     whois \
     curl \
     wget \
+    && setcap cap_net_raw+ep /usr/bin/nmap \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy backend requirements and install Python dependencies
