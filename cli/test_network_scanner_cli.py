@@ -49,3 +49,22 @@ class TestNetworkScannerCLI(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+class TestWhoisResponseCompatibility(unittest.TestCase):
+    def test_whois_reads_the_api_wrapper_and_prints_nested_fields(self):
+        cli = NetworkScannerCLI('http://scanner.example.test')
+        cli.make_request = lambda *args, **kwargs: {
+            'domain': 'example.test',
+            'whois_data': {
+                'registrar': 'Example Registrar',
+                'name_servers': ['ns1.example.test'],
+            },
+        }
+
+        with patch('builtins.print') as print_mock:
+            self.assertTrue(cli.whois_lookup('example.test'))
+
+        rendered = '\n'.join(' '.join(map(str, call.args)) for call in print_mock.call_args_list)
+        self.assertIn('Example Registrar', rendered)
+        self.assertIn('ns1.example.test', rendered)

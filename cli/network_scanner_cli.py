@@ -260,6 +260,11 @@ class NetworkScannerCLI:
 
         print(f"\n{Fore.CYAN}WHOIS Information for {domain}:{Style.RESET_ALL}")
 
+        whois_data = result.get("whois_data", result)
+        if not isinstance(whois_data, dict):
+            self.print_status("Lookup returned an invalid WHOIS response", "ERROR")
+            return False
+
         fields = [
             ("Registrar", "registrar"),
             ("Creation Date", "creation_date"),
@@ -269,11 +274,11 @@ class NetworkScannerCLI:
         ]
 
         for label, key in fields:
-            value = result.get(key)
+            value = whois_data.get(key)
             if value and value != "None":
                 print(f"  {Fore.YELLOW}{label}:{Style.RESET_ALL} {value}")
 
-        name_servers = result.get("name_servers", [])
+        name_servers = whois_data.get("name_servers", [])
         if name_servers:
             print(f"  {Fore.YELLOW}Name Servers:{Style.RESET_ALL}")
             for ns in name_servers:

@@ -106,8 +106,8 @@ After=network.target
 Type=simple
 User=$USER
 WorkingDirectory=$PROJECT_ROOT/backend
-Environment=PATH=$PROJECT_ROOT/backend/venv/bin
-ExecStart=$PROJECT_ROOT/backend/venv/bin/python app.py
+Environment="PATH=$PROJECT_ROOT/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=$PROJECT_ROOT/backend/venv/bin/gunicorn --worker-class gthread --workers 1 --threads 100 --bind 127.0.0.1:5000 app:app
 Restart=always
 
 [Install]

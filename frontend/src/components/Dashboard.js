@@ -170,7 +170,7 @@ const Dashboard = ({ showNotification }) => {
             <CardContent sx={{ textAlign: 'center' }}>
               <TrendingIcon sx={{ fontSize: 40, color: '#5a8a6a', mb: 1 }} />
               <Typography variant="h4" component="div" className="stat-number">
-                {statistics?.success_rate || '95.2'}%
+                {statistics?.success_rate == null ? '—' : `${statistics.success_rate}%`}
               </Typography>
               <Typography className="stat-label">Success Rate</Typography>
             </CardContent>

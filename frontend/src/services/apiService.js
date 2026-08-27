@@ -134,16 +134,10 @@ const apiService = {
     return Promise.resolve(newProject);
   },
 
-  // Statistics (mock)
-  getStatistics: () => {
-    return Promise.resolve({
-      total_scans: 42,
-      vulnerabilities_found: 156,
-      critical_vulnerabilities: 8,
-      targets_scanned: 15,
-      success_rate: 94.2
-    });
-  }
+  // Aggregate statistics are not persisted by the backend yet. Returning no
+  // remote metrics lets the dashboard derive honest local scan totals instead
+  // of presenting demo values as production data.
+  getStatistics: () => Promise.resolve(null)
 };
 
 export default apiService;
