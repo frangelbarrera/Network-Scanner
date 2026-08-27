@@ -12,6 +12,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO
 import base64
+from xml.sax.saxutils import escape as xml_escape
+
+
+def _escape_pdf_text(value):
+    """Render untrusted values as literal text in ReportLab paragraphs."""
+    return xml_escape(str(value))
+
 
 class ReportGenerator:
     """Generate comprehensive security assessment reports in PDF and HTML formats"""
@@ -211,15 +218,15 @@ class ReportGenerator:
         story.append(Paragraph("Detailed Vulnerability List", self.subheading_style))
         
         for i, vuln in enumerate(vulnerabilities[:20], 1):  # Limit to first 20 for PDF
-            vuln_title = f"{i}. {vuln.get('title', 'Unknown Vulnerability')}"
+            vuln_title = f"{i}. {_escape_pdf_text(vuln.get('title', 'Unknown Vulnerability'))}"
             story.append(Paragraph(vuln_title, self.vulnerability_style))
             
             vuln_details = f"""
-            <b>Severity:</b> {vuln.get('severity', 'Unknown')}<br/>
-            <b>Type:</b> {vuln.get('type', 'Unknown')}<br/>
-            <b>Description:</b> {vuln.get('description', 'No description available')}<br/>
-            <b>Recommendation:</b> {vuln.get('recommendation', 'No recommendation available')}<br/>
-            <b>Port/Service:</b> {vuln.get('port', 'N/A')} / {vuln.get('service', 'N/A')}
+            <b>Severity:</b> {_escape_pdf_text(vuln.get('severity', 'Unknown'))}<br/>
+            <b>Type:</b> {_escape_pdf_text(vuln.get('type', 'Unknown'))}<br/>
+            <b>Description:</b> {_escape_pdf_text(vuln.get('description', 'No description available'))}<br/>
+            <b>Recommendation:</b> {_escape_pdf_text(vuln.get('recommendation', 'No recommendation available'))}<br/>
+            <b>Port/Service:</b> {_escape_pdf_text(vuln.get('port', 'N/A'))} / {_escape_pdf_text(vuln.get('service', 'N/A'))}
             """
             
             story.append(Paragraph(vuln_details, self.styles['Normal']))
@@ -239,7 +246,7 @@ class ReportGenerator:
             if subdomains:
                 # Show first 20 subdomains
                 subdomain_list = subdomains[:20]
-                subdomain_text = "<br/>".join([f"• {sub}" for sub in subdomain_list])
+                subdomain_text = "<br/>".join([f"• {_escape_pdf_text(sub)}" for sub in subdomain_list])
                 if len(subdomains) > 20:
                     subdomain_text += f"<br/>... and {len(subdomains) - 20} more"
                 
@@ -260,7 +267,7 @@ class ReportGenerator:
                 open_ports = host.get('open_ports', [])
                 if open_ports:
                     ports_text = "<br/>".join([
-                        f"• Port {port['port']}/{port['protocol']} - {port['service']} {port.get('version', '')}"
+                        f"• Port {_escape_pdf_text(port['port'])}/{_escape_pdf_text(port['protocol'])} - {_escape_pdf_text(port['service'])} {_escape_pdf_text(port.get('version', ''))}"
                         for port in open_ports[:10]  # Limit to first 10
                     ])
                     story.append(Paragraph(ports_text, self.styles['Normal']))
@@ -272,25 +279,25 @@ class ReportGenerator:
         if isinstance(ai_analysis, dict):
             if 'assessment' in ai_analysis:
                 story.append(Paragraph("Assessment Summary", self.subheading_style))
-                story.append(Paragraph(ai_analysis['assessment'], self.styles['Normal']))
+                story.append(Paragraph(_escape_pdf_text(ai_analysis['assessment']), self.styles['Normal']))
                 story.append(Spacer(1, 10))
             
             if 'recommendations' in ai_analysis:
                 story.append(Paragraph("AI Recommendations", self.subheading_style))
                 recommendations = ai_analysis['recommendations']
                 if isinstance(recommendations, list):
-                    rec_text = "<br/>".join([f"• {rec}" for rec in recommendations])
+                    rec_text = "<br/>".join([f"• {_escape_pdf_text(rec)}" for rec in recommendations])
                     story.append(Paragraph(rec_text, self.styles['Normal']))
                 else:
-                    story.append(Paragraph(str(recommendations), self.styles['Normal']))
+                    story.append(Paragraph(_escape_pdf_text(recommendations), self.styles['Normal']))
                 
                 story.append(Spacer(1, 10))
             
             if 'risk_level' in ai_analysis:
                 story.append(Paragraph("Risk Assessment", self.subheading_style))
-                risk_text = f"Overall Risk Level: <b>{ai_analysis['risk_level']}</b>"
+                risk_text = f"Overall Risk Level: <b>{_escape_pdf_text(ai_analysis['risk_level'])}</b>"
                 if 'explanation' in ai_analysis:
-                    risk_text += f"<br/>Explanation: {ai_analysis['explanation']}"
+                    risk_text += f"<br/>Explanation: {_escape_pdf_text(ai_analysis['explanation'])}"
                 story.append(Paragraph(risk_text, self.styles['Normal']))
     
     def _add_recommendations_section_pdf(self, story, scan_data):

@@ -65,30 +65,29 @@ class VulnScanner:
             return {'error': str(e), 'target': target}
     
     def _quick_port_scan(self, target):
-        """Quick port scan to identify services"""
-        try:
-            # Scan common ports quickly
-            common_ports = "21,22,23,25,53,80,110,143,443,993,995,1433,3306,3389,5432,5900,8080,8443"
-            self.nm.scan(target, common_ports, arguments='-sS --top-ports 1000')
-            
-            open_ports = []
-            for host in self.nm.all_hosts():
-                for proto in self.nm[host].all_protocols():
-                    ports = self.nm[host][proto].keys()
-                    for port in ports:
-                        if self.nm[host][proto][port]['state'] == 'open':
-                            open_ports.append({
-                                'port': port,
-                                'service': self.nm[host][proto][port].get('name', 'unknown'),
-                                'version': self.nm[host][proto][port].get('version', ''),
-                                'product': self.nm[host][proto][port].get('product', '')
-                            })
-            
-            return open_ports
-            
-        except Exception as e:
-            print(f"[WARNING] Quick port scan failed: {str(e)}")
-            return []
+        """Quick port scan to identify services or raise when Nmap cannot run."""
+        # Scan common ports quickly.
+        common_ports = "21,22,23,25,53,80,110,143,443,993,995,1433,3306,3389,5432,5900,8080,8443"
+        scan_output = self.nm.scan(target, common_ports, arguments='-sS --top-ports 1000')
+        scan_error = scan_output.get('nmap', {}).get('scaninfo', {}).get('error') if isinstance(scan_output, dict) else None
+        if scan_error:
+            message = ''.join(scan_error) if isinstance(scan_error, list) else str(scan_error)
+            raise RuntimeError(f"Nmap execution failed: {message.strip()}")
+
+        open_ports = []
+        for host in self.nm.all_hosts():
+            for proto in self.nm[host].all_protocols():
+                ports = self.nm[host][proto].keys()
+                for port in ports:
+                    if self.nm[host][proto][port]['state'] == 'open':
+                        open_ports.append({
+                            'port': port,
+                            'service': self.nm[host][proto][port].get('name', 'unknown'),
+                            'version': self.nm[host][proto][port].get('version', ''),
+                            'product': self.nm[host][proto][port].get('product', '')
+                        })
+
+        return open_ports
     
     def _basic_vulnerability_scan(self, target, port_scan_results):
         """Basic vulnerability checks"""

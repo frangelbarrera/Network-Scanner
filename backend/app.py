@@ -8,6 +8,7 @@ from functools import wraps
 import hmac
 import os
 import re
+import shlex
 from datetime import datetime
 
 
@@ -151,6 +152,12 @@ def validate_target(value):
         return None, "Target is required"
     if len(target) > 253 or any(character.isspace() for character in target):
         return None, "Target contains invalid characters"
+    try:
+        parsed_target = shlex.split(target)
+    except ValueError:
+        return None, "Target contains invalid characters"
+    if len(parsed_target) != 1 or parsed_target[0] != target or parsed_target[0].startswith("-"):
+        return None, "Target must not start with an option prefix"
     return target, None
 
 
