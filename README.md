@@ -1,10 +1,10 @@
-#  Network Scanner
+# Network Scanner
 
-**AI-Assisted Vulnerability Assessment & Penetration Testing Tool**
+**AI-assisted network reconnaissance and security assessment toolkit**
 
-Network Scanner is an open-source security scanning platform that combines traditional penetration testing tools with artificial intelligence to provide comprehensive vulnerability assessments. Designed for beginners, researchers, and security professionals, it offers automated reconnaissance, intelligent analysis, and detailed reporting.
+Network Scanner is an open-source toolkit that combines DNS, WHOIS, subdomain, port and selected web checks with a CLI, web interface, structured reporting and optional AI-assisted analysis. It is designed for security research, education, laboratories and explicitly authorized assessments. Some checks are heuristic and their results require manual validation; this project is not a replacement for a professional penetration test or a full production security platform.
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
 [![License: MIT](https://img.shields.io/github/license/frangelbarrera/Network-Scanner?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/frangelbarrera/Network-Scanner?style=flat-square)](https://github.com/frangelbarrera/Network-Scanner/stargazers)
@@ -19,7 +19,7 @@ Network Scanner is an open-source security scanning platform that combines tradi
 ### Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
 
-Overview of scan statistics, recent activity, and quick actions. Metric cards summarise total scans, vulnerabilities found, and active projects at a glance.
+Overview of scan statistics, recent activity, and quick actions. Metric cards summarise data available in the browser UI; project and history state is stored in browser `localStorage`, not in a server-side multi-user store.
 
 ### Scanner
 ![Scanner](docs/screenshots/scanner.png)
@@ -29,7 +29,7 @@ Configure and launch scans against a target. Tabs let you switch between subdoma
 ### Scan Results
 ![Scan Results](docs/screenshots/results.png)
 
-Browse previous scan results with filters by type and severity. Each entry links to the detailed findings and the AI analysis produced alongside the scan.
+Browse scan results stored in the browser `localStorage`, with filters by type and severity. The data survives browser restarts but is not a server-side multi-user project store.
 
 ### AI Assistant
 ![AI Assistant](docs/screenshots/ai-assistant.png)
@@ -39,7 +39,7 @@ Chat interface backed by OpenAI. Ask for explanations of vulnerabilities, priori
 ### Reports
 ![Reports](docs/screenshots/reports.png)
 
-List of generated security assessment reports. Filter by type, search by target, and download as PDF or HTML.
+List of reports tracked in browser `localStorage`. Filter by type, search by target, and download static HTML or PDF reports; server-side project and audit persistence is not provided by the current API.
 
 ### Settings
 ![Settings](docs/screenshots/settings.png)
@@ -57,19 +57,25 @@ A generated HTML report rendered in the browser. The same content can be exporte
 |----------|----------|
 |  **Reconnaissance** | Subdomain finder, WHOIS lookup, port scanning, DNS enumeration |
 |  **AI Assistant** | OpenAI-powered analysis of scan results with fallback mode |
-|  **Automation** | Comprehensive scans via CLI or web interface |
-|  **Reports** | Generates PDF and HTML reports |
-|  **Learning Mode** | Educational explanations for students and beginners |
-|  **API Ready** | RESTful API for integration and automation |
+|  **Automation** | Combined scan workflows via WebSocket or web interface; the CLI exposes individual API commands |
+|  **Reports** | Generates PDF and HTML reports from scan results |
+|  **Learning Mode** | Educational explanations in the web interface |
+|  **API** | RESTful API with optional bearer-token protection and rate limits |
 |  **Docker** | Containerised deployment via docker-compose |
+
+### Capability status
+
+The project intentionally combines stable workflows with experimental checks. DNS and WHOIS lookups, subdomain reconnaissance, port scanning, report generation and the CLI are implemented workflows. Vulnerability checks and AI-assisted interpretation are assessment aids: they may use heuristics, depend on local tools and require independent validation. Data models for future project, user and audit workflows are present in the codebase, but they should not be interpreted as a complete multi-user platform.
+
+Scan only systems you own or have explicit permission to assess. Use production configuration, non-default secrets and a protected reverse proxy when hosting the service beyond a local laboratory.
 
 ##  Quick Start
 
 ### Prerequisites
 
-- Python 3.8+ and pip
+- Python 3.9+ and pip
 - Node.js 16+ and npm
-- nmap, dnsutils, whois (installed automatically)
+- nmap, dnsutils and whois (installed by `scripts/install.sh` on Ubuntu/Debian; the manual path requires installing them separately with the system package manager). Port and vulnerability scans use Nmap SYN/OS detection and may require root or `CAP_NET_RAW`; the Compose backend grants `NET_RAW`.
 
 ### Installation
 
@@ -116,7 +122,7 @@ cd backend
 source venv/bin/activate
 python app.py
 # API available at http://localhost:5000/api
-# Development mode does not require an API token. Production does.
+# An API token is required whenever `API_ACCESS_TOKEN` is configured; production configuration requires it.
 ```
 
 **Start the Frontend (new terminal):**
@@ -140,30 +146,30 @@ python cli/network_scanner_cli.py vuln https://example.com --scan-type web
 
 ### Docker Compose Deployment
 
-Docker Compose exposes only the Nginx proxy, bound to `127.0.0.1:80`. The backend, frontend, Redis, and optional PostgreSQL service remain on the internal Docker network. Configure `.env` first, then start the stack:
+Docker Compose exposes only the Nginx proxy, bound to `127.0.0.1:80`. The backend, frontend, Redis, and optional PostgreSQL service remain on the internal Docker network. Configure `.env` first, then start the stack. With the default relative SQLite URL, Flask-SQLAlchemy creates the database under the Flask instance directory (`/app/instance/network_scanner.db` in the container); the published `/app/data` volume does not make that default database durable across container recreation.
 
 ```bash
 docker compose up --build -d
-# Optional PostgreSQL profile:
+# Optional PostgreSQL service (the current backend remains configured for SQLite by default):
 docker compose --profile postgres up --build -d
 ```
 
-Deploy TLS at a managed load balancer or reverse proxy that terminates HTTPS and forwards only to `127.0.0.1:80`. The bundled Nginx configuration intentionally does not claim to provide TLS on port 443; do not publish its HTTP listener directly to the Internet. In production, enter the value of `API_ACCESS_TOKEN` in **Settings → Service Access** for each browser session, or use `NETWORK_SCANNER_API_TOKEN` with the CLI.
+Deploy TLS at a managed load balancer or reverse proxy that terminates HTTPS and forwards only to `127.0.0.1:80`. The bundled Nginx configuration intentionally does not provide TLS on port 443; place it behind a managed TLS terminator or another trusted reverse proxy, and do not publish its HTTP listener directly to the Internet. In production, enter the value of `API_ACCESS_TOKEN` in **Settings → Service Access** for each browser session, or use `NETWORK_SCANNER_API_TOKEN` with the CLI.
 
 ##  Usage Examples
 
 ### Web Interface
 
-1. **Dashboard**: View scan statistics, recent results, and quick actions
+1. **Dashboard**: View scan statistics, browser-stored results, and quick actions
 2. **Scanner**: Configure and run different types of security scans
-3. **Results**: Analyze findings with AI-powered insights
-4. **Reports**: Generate professional security assessment reports
+3. **Results**: Analyze findings with optional AI-assisted insights
+4. **Reports**: Generate structured static HTML or PDF reports
 5. **AI Assistant**: Chat with AI for security advice and explanations
 
 ### Command Line Interface
 
 ```bash
-# Comprehensive subdomain enumeration
+# Subdomain enumeration
 python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" subdomain target.com --output results.json
 
 # Port scan with custom range
@@ -175,7 +181,7 @@ python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" vuln 
 # DNS reconnaissance
 python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" dns target.com
 
-# Generate professional report
+# Generate a structured report
 python cli/network_scanner_cli.py --api-token "$NETWORK_SCANNER_API_TOKEN" report results.json --format pdf
 ```
 
@@ -220,8 +226,8 @@ Network-Scanner/
 ### Key Components
 
 - **Reconnaissance Module**: Subdomain enumeration, port scanning, DNS/WHOIS lookups
-- **AI Assistant**: OpenAI integration for intelligent analysis and recommendations
-- **Vulnerability Scanner**: Web app and network service security assessment
+- **AI Assistant**: Optional OpenAI integration for assisted analysis and recommendations; when configured, submitted messages, context and scan results are sent to the selected provider
+- **Vulnerability Scanner**: Web app and network service security assessment using checks that may be heuristic and require manual validation
 - **Report Generator**: Professional PDF/HTML report creation
 - **Access Control**: Token-gated production API and browser-local project preferences
 
@@ -257,24 +263,25 @@ Network-Scanner/
 - Name server identification
 - Expiration date monitoring
 
-##  AI Features
+## AI Features
 
 Network Scanner integrates AI to enhance security assessments:
 
-- **Intelligent Analysis**: Automatically interprets scan results
-- **Risk Assessment**: Prioritizes findings by severity and impact
-- **Remediation Guidance**: Provides specific fix recommendations
+- **Intelligent Analysis**: Assists with interpreting scan results
+- **Risk Assessment**: Helps prioritize findings by severity and impact
+- **Remediation Guidance**: Suggests fix recommendations for operator review
+- **Provider privacy**: When `OPENAI_API_KEY` is configured, messages, supplied context and scan results are transmitted to OpenAI; do not submit personal, confidential or third-party data without appropriate authority and policy review. Untrusted context can influence the prompt, so AI output is advisory and must not be treated as a verified security decision.
 - **Learning Mode**: Explains techniques for educational purposes
 - **Contextual Chat**: Interactive AI assistant for security questions
 
 ##  Reporting
 
-Generate professional security reports in multiple formats:
+Generate structured security reports in multiple formats:
 
-- **HTML Reports**: Interactive web-based reports with charts
+- **HTML Reports**: Static HTML reports with styled tables and summary cards
 - **PDF Reports**: Professional documents for stakeholders
 - **JSON Scan Results**: CLI output can be saved as machine-readable data for integration
-- **Executive Summaries**: High-level findings for management
+- **Executive Summaries**: High-level findings for management when included in the scan data
 
 ##  Security Considerations
 
@@ -282,13 +289,14 @@ Generate professional security reports in multiple formats:
 
 - Only scan systems you own or have explicit permission to test
 - Some scans may be detected by security systems
+- Selected web checks currently allow self-signed certificates with disabled TLS certificate verification; this can permit man-in-the-middle interference with scanner traffic and must not be used where certificate validation is required
 - Follow responsible disclosure practices
 - Respect rate limits and target system resources
 - Review local laws and regulations before testing
 
 ##  Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions and focused improvements are welcome through the repository workflow.
 
 ### Development Setup
 
@@ -328,4 +336,4 @@ Network Scanner is for educational and authorized testing purposes only. Users a
 
 ---
 
-**Made with ❤️ for the cybersecurity community**
+**Built for the cybersecurity community**
