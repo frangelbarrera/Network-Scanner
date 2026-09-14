@@ -1,0 +1,34 @@
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directories:
+      - /backend
+      - /cli
+    schedule:
+      interval: weekly
+    groups:
+      # One grouped PR per week instead of a dozen noisy bumps.
+      python-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    ignore:
+      # Leaving Create React App is a deliberate, larger migration; do not
+      # propose major bumps of the deprecated toolchain itself.
+      - dependency-name: react-scripts
+        update-types: ["version-update:semver-major"]
+    groups:
+      frontend-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

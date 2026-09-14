@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend and CLI tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the floor imposed by the pinned dependencies; 3.12 is the
+        # version the Docker image ships.
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            cli/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt -r cli/requirements.txt
+
+      # The test suites mock nmap and the whois library at import time, so no
+      # scanner binaries are needed on the runner.
+      - name: Backend tests
+        working-directory: backend
+        run: python -m unittest discover -s tests -v
+
+      - name: CLI tests
+        run: python -m unittest discover -s cli -p 'test_*.py' -v
+
+  frontend:
+    name: Frontend tests and build (Node 20)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # frontend/.npmrc pins legacy-peer-deps for the CRA dependency tree.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tests
+        run: CI=true npm test -- --watchAll=false
+
+      # In CRA the production build also acts as the lint gate.
+      - name: Production build
+        run: CI=true npm run build
