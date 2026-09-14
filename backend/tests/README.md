@@ -39,7 +39,8 @@ that a specific bug pattern does not return:
 4. `TestReportGeneratorPath` — `/workspaces/Network-Scanner` hardcoded path is
    gone, `REPORTS_DIR` env var is referenced, and the directory is created with
    `exist_ok=True`.
-5. `TestRequirementsTxt` — `jwt==1.3.1` is removed, `pyjwt==2.8.0` is kept.
+5. `TestRequirementsTxt` — `jwt==1.3.1` is removed, and unused packages
+   (pyjwt, bcrypt) stay out until the auth work that needs them lands.
 6. `TestNoUnusedImports` — dead `import subprocess`, `import json`,
    `import threading` (reconnaissance) and `import subprocess` (scanner) are
    gone.

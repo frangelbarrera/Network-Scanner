@@ -39,7 +39,7 @@ PORT_RANGE_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
 
 # WebSocket events are not covered by flask-limiter, so cap how many
 # automated scans may run at the same time on the scanner host.
-SCAN_SLOTS = threading.BoundedSemaphore(int(os.environ.get("SCAN_CONCURRENCY", "2")))
+SCAN_SLOTS = threading.BoundedSemaphore(int(os.environ.get("SCAN_CONCURRENCY") or "2"))
 
 
 # Initialize Flask app
@@ -101,8 +101,8 @@ def rate_limit_key():
 limiter = Limiter(
     key_func=rate_limit_key,
     app=app,
-    default_limits=[os.environ.get("RATE_LIMIT_DEFAULT", "60 per minute")],
-    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+    default_limits=[os.environ.get("RATE_LIMIT_DEFAULT") or "60 per minute"],
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI") or "memory://",
 )
 from extensions import db
 db.init_app(app)
@@ -207,7 +207,7 @@ def health_check():
     return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
 
 @app.route('/api/scan/subdomain', methods=['POST'])
-@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN") or "10 per minute")
 @require_api_token
 def scan_subdomains():
     """Subdomain enumeration endpoint"""
@@ -245,7 +245,7 @@ def scan_subdomains():
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/scan/ports', methods=['POST'])
-@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN") or "10 per minute")
 @require_api_token
 def scan_ports():
     """Port scanning endpoint"""
@@ -288,7 +288,7 @@ def scan_ports():
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/scan/whois', methods=['POST'])
-@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN") or "10 per minute")
 @require_api_token
 def whois_lookup():
     """WHOIS lookup endpoint"""
@@ -319,7 +319,7 @@ def whois_lookup():
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/scan/dns', methods=['POST'])
-@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN") or "10 per minute")
 @require_api_token
 def dns_enumeration():
     """DNS enumeration endpoint"""
@@ -354,7 +354,7 @@ def dns_enumeration():
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/vulnerability/scan', methods=['POST'])
-@limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
+@limiter.limit(os.environ.get("RATE_LIMIT_SCAN") or "10 per minute")
 @require_api_token
 def vulnerability_scan():
     """Vulnerability scanning endpoint"""
@@ -397,7 +397,7 @@ def vulnerability_scan():
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/report/generate', methods=['POST'])
-@limiter.limit(os.environ.get("RATE_LIMIT_REPORT", "20 per minute"))
+@limiter.limit(os.environ.get("RATE_LIMIT_REPORT") or "20 per minute")
 @require_api_token
 def generate_report():
     """Generate scan report endpoint"""
@@ -444,7 +444,7 @@ def download_report(filename):
     return send_from_directory(reports_dir, safe_filename, as_attachment=True)
 
 @app.route('/api/ai/chat', methods=['POST'])
-@limiter.limit(os.environ.get("RATE_LIMIT_AI", "20 per minute"))
+@limiter.limit(os.environ.get("RATE_LIMIT_AI") or "20 per minute")
 @require_api_token
 def ai_chat():
     """AI assistant chat endpoint"""

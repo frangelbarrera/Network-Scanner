@@ -1,5 +1,5 @@
-# Use Python 3.9 slim image
-FROM python:3.9-slim
+# Use Python 3.12 slim image
+FROM python:3.12-slim
 
 # Set working directory
 WORKDIR /app
@@ -42,4 +42,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/api/health || exit 1
 
 # Run a production WSGI server with a threaded worker compatible with Socket.IO.
-CMD ["gunicorn", "--worker-class", "gthread", "--workers", "1", "--threads", "100", "--bind", "0.0.0.0:5000", "app:app"]
+# /dev/shm keeps gunicorn's heartbeat file on tmpfs (see gunicorn 22 notes).
+CMD ["gunicorn", "--worker-class", "gthread", "--workers", "1", "--threads", "100", "--worker-tmp-dir", "/dev/shm", "--bind", "0.0.0.0:5000", "app:app"]

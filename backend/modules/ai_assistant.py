@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # default (10 minutes with retries) is far beyond the UX and gateway timeouts.
 OPENAI_TIMEOUT_SECONDS = 30.0
 OPENAI_MAX_RETRIES = 2
+DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 
 # Scan output (hostnames, service banners) is attacker-controlled text: it
 # travels into prompts strictly between delimiters and with a system
@@ -40,7 +41,7 @@ class AIAssistant:
     def _complete_json(self, instruction, scan_data_text, max_tokens):
         """Run one analysis completion and parse the model's JSON reply."""
         response = self.client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.getenv("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": ANALYSIS_SYSTEM_PROMPT},
                 {
@@ -366,7 +367,7 @@ class AIAssistant:
             messages.append({"role": "user", "content": message})
 
             response = self.client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                model=os.getenv("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL,
                 messages=messages,
                 max_tokens=800,
                 temperature=0.7

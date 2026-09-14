@@ -6,6 +6,7 @@ bounded automated-scan concurrency, and the OpenAI client guardrails.
 """
 import os
 import sys
+import threading
 import time
 import types
 import unittest
@@ -70,6 +71,31 @@ class TestAppHardeningConfig(unittest.TestCase):
         value, error = application.validate_port_range(oversized)
         self.assertIsNone(value)
         self.assertIn("too long", error)
+
+
+class TestOptionalEnvVarsFallBackWhenEmpty(unittest.TestCase):
+    """Docker Compose passes optional settings as empty strings when unset,
+    and os.environ.get(VAR, default) does NOT apply the default in that
+    case. Every optional setting must tolerate the empty value."""
+
+    def test_empty_scan_concurrency_uses_default(self):
+        with patch.dict(os.environ, {"SCAN_CONCURRENCY": ""}):
+            slots = threading.BoundedSemaphore(
+                int(os.environ.get("SCAN_CONCURRENCY") or "2")
+            )
+        self.assertEqual(slots._initial_value, 2)
+
+    def test_empty_rate_limit_keeps_working_default(self):
+        with patch.dict(os.environ, {"RATE_LIMIT_AI": ""}):
+            limit = os.environ.get("RATE_LIMIT_AI") or "20 per minute"
+        self.assertEqual(limit, "20 per minute")
+
+    def test_empty_openai_model_uses_default(self):
+        from modules.ai_assistant import DEFAULT_OPENAI_MODEL
+
+        with patch.dict(os.environ, {"OPENAI_MODEL": ""}):
+            model = os.getenv("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
+        self.assertEqual(model, "gpt-4o-mini")
 
 
 class TestAiChatInputValidation(unittest.TestCase):

@@ -146,7 +146,7 @@ python cli/network_scanner_cli.py vuln https://example.com --scan-type web
 
 ### Docker Compose Deployment
 
-Docker Compose exposes only the Nginx proxy, bound to `127.0.0.1:80`. The backend, frontend, Redis, and optional PostgreSQL service remain on the internal Docker network. Configure `.env` first, then start the stack. With the default relative SQLite URL, Flask-SQLAlchemy creates the database under the Flask instance directory (`/app/instance/network_scanner.db` in the container); the published `/app/data` volume does not make that default database durable across container recreation.
+Docker Compose exposes only the Nginx proxy, bound to `127.0.0.1:80`. The backend, frontend, Redis, and optional PostgreSQL service remain on the internal Docker network. Configure `.env` first, then start the stack. The default SQLite URL points at the `/app/data` volume, so the database survives container recreation.
 
 ```bash
 docker compose up --build -d

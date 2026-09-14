@@ -8,7 +8,8 @@ Tests:
 4. reconnaissance._cert_transparency_search uses domain_name (not undefined name)
 5. ai_assistant uses OPENAI_MODEL env var (no hardcoded gpt-3.5-turbo)
 6. report_generator uses REPORTS_DIR env var (no hardcoded /workspaces/ path)
-7. requirements.txt does not contain jwt==1.3.1 (conflict with pyjwt)
+7. requirements.txt does not contain jwt==1.3.1 (conflict with pyjwt), and carries
+   no packages the code does not import (pyjwt and bcrypt were dropped)
 8. Unused imports removed (subprocess/json/threading in reconnaissance, subprocess in scanner)
 """
 import os
@@ -237,7 +238,7 @@ class TestReportGeneratorPath(unittest.TestCase):
 
 
 class TestRequirementsTxt(unittest.TestCase):
-    """Tests that requirements.txt does not have jwt/pyjwt conflict."""
+    """Tests that requirements.txt stays free of the jwt/pyjwt conflict."""
 
     def test_requirements_does_not_have_jwt_131(self):
         """Verify that jwt==1.3.1 is not in requirements.txt."""
@@ -248,20 +249,18 @@ class TestRequirementsTxt(unittest.TestCase):
         self.assertNotIn(
             'jwt==1.3.1',
             source,
-            "requirements.txt still has jwt==1.3.1 which conflicts with pyjwt==2.8.0."
+            "requirements.txt still has jwt==1.3.1 which conflicts with pyjwt."
         )
 
-    def test_requirements_keeps_pyjwt(self):
-        """Verify that pyjwt is still present (it's the maintained successor)."""
+    def test_requirements_has_no_unused_auth_packages(self):
+        """pyjwt and bcrypt were dropped with the auth roadmap in mind only;
+        nothing imports them, so they must not silently return."""
         req_path = os.path.join(os.path.dirname(__file__), '..', 'requirements.txt')
         with open(req_path, 'r') as f:
             source = f.read()
 
-        self.assertIn(
-            'pyjwt==2.8.0',
-            source,
-            "requirements.txt must keep pyjwt==2.8.0 (maintained successor)."
-        )
+        self.assertNotIn('pyjwt', source, "pyjwt is unused; re-add it with the auth work that needs it.")
+        self.assertNotIn('bcrypt', source, "bcrypt is unused; re-add it with the auth work that needs it.")
 
 
 class TestNoUnusedImports(unittest.TestCase):

@@ -1,7 +1,7 @@
-version: '3.8'
-
 services:
   # Internal cache and task broker. It is intentionally not published to the host.
+  # The backend uses it for shared rate-limit storage when
+  # RATELIMIT_STORAGE_URI points at this service (see .env.example).
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -33,13 +33,24 @@ services:
     restart: unless-stopped
     environment:
       FLASK_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-sqlite:///network_scanner.db}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/network_scanner.db}
       REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env before starting Compose}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set a random SECRET_KEY of at least 32 characters in .env before starting Compose}
       API_ACCESS_TOKEN: ${API_ACCESS_TOKEN:?Set a random API_ACCESS_TOKEN in .env before starting Compose}
       HOST: 0.0.0.0
       REPORTS_DIR: /app/reports
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # The stack runs behind its own nginx proxy: honor the forwarded client
+      # address so per-client rate limits apply instead of one shared bucket.
+      TRUST_PROXY: "1"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-}
+      RATE_LIMIT_SCAN: ${RATE_LIMIT_SCAN:-}
+      RATE_LIMIT_REPORT: ${RATE_LIMIT_REPORT:-}
+      RATE_LIMIT_AI: ${RATE_LIMIT_AI:-}
+      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-}
+      SCAN_CONCURRENCY: ${SCAN_CONCURRENCY:-}
     cap_add:
       - NET_RAW
     volumes:
