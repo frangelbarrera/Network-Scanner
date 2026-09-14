@@ -1,18 +1,40 @@
+import logging
 import nmap
 import requests
-import json
 from datetime import datetime
 import socket
 import ssl
-import re
 from urllib.parse import urlparse
-import concurrent.futures
+
+logger = logging.getLogger(__name__)
+
+
+def _raw_socket_available():
+    """Return True when the process may create raw sockets (CAP_NET_RAW/root)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP):
+            return True
+    except (PermissionError, OSError):
+        return False
+
+
+def _nmap_scan_args():
+    """Pick Nmap arguments that work with the privileges we actually have.
+
+    SYN scans and OS detection require raw sockets. Without them Nmap aborts
+    ("You requested a scan type which requires root privileges"), so fall
+    back to a full connect scan and drop -O instead of failing the scan.
+    """
+    if _raw_socket_available():
+        return '-sS -sV'
+    logger.info("No raw-socket privileges: using Nmap connect scan (-sT)")
+    return '-sT -sV'
+
 
 class VulnScanner:
     """Vulnerability scanner for web applications and network services"""
     
     def __init__(self):
-        self.nm = nmap.PortScanner()
         self.common_vulns = {
             'http': ['HTTP methods', 'Directory traversal', 'XSS', 'SQL injection', 'CSRF'],
             'https': ['SSL/TLS vulnerabilities', 'Certificate issues', 'Weak ciphers'],
@@ -66,25 +88,30 @@ class VulnScanner:
     
     def _quick_port_scan(self, target):
         """Quick port scan to identify services or raise when Nmap cannot run."""
-        # Scan common ports quickly.
+        # A shared PortScanner instance is not thread-safe: python-nmap keeps
+        # per-scan state on the object, so concurrent requests would read each
+        # other's results. A fresh instance per scan keeps scans isolated.
+        nm = nmap.PortScanner()
+        # Scan common ports quickly. Service banners are part of the results
+        # contract, so -sV must be present for version/product to be filled.
         common_ports = "21,22,23,25,53,80,110,143,443,993,995,1433,3306,3389,5432,5900,8080,8443"
-        scan_output = self.nm.scan(target, common_ports, arguments='-sS --top-ports 1000')
+        scan_output = nm.scan(target, common_ports, arguments=_nmap_scan_args())
         scan_error = scan_output.get('nmap', {}).get('scaninfo', {}).get('error') if isinstance(scan_output, dict) else None
         if scan_error:
             message = ''.join(scan_error) if isinstance(scan_error, list) else str(scan_error)
             raise RuntimeError(f"Nmap execution failed: {message.strip()}")
 
         open_ports = []
-        for host in self.nm.all_hosts():
-            for proto in self.nm[host].all_protocols():
-                ports = self.nm[host][proto].keys()
+        for host in nm.all_hosts():
+            for proto in nm[host].all_protocols():
+                ports = nm[host][proto].keys()
                 for port in ports:
-                    if self.nm[host][proto][port]['state'] == 'open':
+                    if nm[host][proto][port]['state'] == 'open':
                         open_ports.append({
                             'port': port,
-                            'service': self.nm[host][proto][port].get('name', 'unknown'),
-                            'version': self.nm[host][proto][port].get('version', ''),
-                            'product': self.nm[host][proto][port].get('product', '')
+                            'service': nm[host][proto][port].get('name', 'unknown'),
+                            'version': nm[host][proto][port].get('version', ''),
+                            'product': nm[host][proto][port].get('product', '')
                         })
 
         return open_ports
@@ -235,48 +262,76 @@ class VulnScanner:
                 hostname = target
                 port = 443
             
-            # Check SSL certificate
+            # Check SSL certificate. With verify_mode=CERT_NONE the peer
+            # certificate dict is always empty, so the expiry check below
+            # never ran. Verify against the system trust store instead;
+            # untrusted certificates surface as findings rather than being
+            # silently dropped.
             context = ssl.create_default_context()
             context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
             
-            with socket.create_connection((hostname, port), timeout=10) as sock:
-                with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                    cert = ssock.getpeercert()
-                    cipher = ssock.cipher()
-                    
-                    # Check certificate expiration
-                    if cert:
-                        not_after = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
-                        days_until_expiry = (not_after - datetime.now()).days
-                        
-                        if days_until_expiry < 30:
-                            vulnerabilities.append({
-                                'type': 'SSL/TLS',
-                                'severity': 'High' if days_until_expiry < 7 else 'Medium',
-                                'title': 'SSL Certificate Expiring Soon',
-                                'description': f'SSL certificate expires in {days_until_expiry} days',
-                                'recommendation': 'Renew SSL certificate before expiration',
-                                'port': port,
-                                'service': 'HTTPS'
-                            })
-                    
-                    # Check for weak ciphers
-                    if cipher:
-                        cipher_name = cipher[0]
-                        if any(weak in cipher_name.upper() for weak in ['RC4', 'DES', 'MD5', 'SHA1']):
-                            vulnerabilities.append({
-                                'type': 'SSL/TLS',
-                                'severity': 'High',
-                                'title': 'Weak SSL Cipher',
-                                'description': f'Weak cipher suite in use: {cipher_name}',
-                                'recommendation': 'Configure stronger cipher suites',
-                                'port': port,
-                                'service': 'HTTPS'
-                            })
-                            
+            try:
+                with socket.create_connection((hostname, port), timeout=10) as sock:
+                    with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                        cert = ssock.getpeercert()
+                        cipher = ssock.cipher()
+            except ssl.SSLCertVerificationError as cert_error:
+                vulnerabilities.append({
+                    'type': 'SSL/TLS',
+                    'severity': 'Medium',
+                    'title': 'SSL Certificate Verification Failed',
+                    'description': f'Certificate could not be verified: {cert_error.reason}',
+                    'recommendation': 'Review the TLS certificate chain and renewal status',
+                    'port': port,
+                    'service': 'HTTPS'
+                })
+                # Untrusted certificates are a documented use case (internal
+                # self-signed hosts); keep reporting the negotiated cipher by
+                # peeking at it through a verification-disabled connection.
+                cert = None
+                cipher = None
+                try:
+                    cipher_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                    cipher_context.check_hostname = False
+                    cipher_context.verify_mode = ssl.CERT_NONE
+                    with socket.create_connection((hostname, port), timeout=10) as sock:
+                        with cipher_context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                            cipher = ssock.cipher()
+                except OSError:
+                    pass
+
+            # Check certificate expiration
+            if cert:
+                not_after = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+                days_until_expiry = (not_after - datetime.now()).days
+
+                if days_until_expiry < 30:
+                    vulnerabilities.append({
+                        'type': 'SSL/TLS',
+                        'severity': 'High' if days_until_expiry < 7 else 'Medium',
+                        'title': 'SSL Certificate Expiring Soon',
+                        'description': f'SSL certificate expires in {days_until_expiry} days',
+                        'recommendation': 'Renew SSL certificate before expiration',
+                        'port': port,
+                        'service': 'HTTPS'
+                    })
+
+            # Check for weak ciphers
+            if cipher:
+                cipher_name = cipher[0]
+                if any(weak in cipher_name.upper() for weak in ['RC4', 'DES', 'MD5', 'SHA1']):
+                    vulnerabilities.append({
+                        'type': 'SSL/TLS',
+                        'severity': 'High',
+                        'title': 'Weak SSL Cipher',
+                        'description': f'Weak cipher suite in use: {cipher_name}',
+                        'recommendation': 'Configure stronger cipher suites',
+                        'port': port,
+                        'service': 'HTTPS'
+                    })
+
         except Exception as e:
-            print(f"[WARNING] SSL vulnerability scan error: {str(e)}")
+            logger.warning("SSL vulnerability scan error: %s", e)
         
         return vulnerabilities
     

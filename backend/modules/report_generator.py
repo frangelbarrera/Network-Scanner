@@ -422,6 +422,7 @@ class ReportGenerator:
         .severity.high { background-color: #e74c3c; }
         .severity.medium { background-color: #f39c12; }
         .severity.low { background-color: #27ae60; }
+        .severity.info, .severity.unknown { background-color: #7f8c8d; }
         .subdomain-list {
             columns: 3;
             column-gap: 30px;
@@ -537,9 +538,9 @@ class ReportGenerator:
             {% if severity_breakdown %}
             <div class="summary-stats">
                 {% for severity, count in severity_breakdown.items() %}
-                <div class="stat-box {{ severity.lower() }}">
+                <div class="stat-box {{ (severity or 'unknown')|lower }}">
                     <span class="stat-number">{{ count }}</span>
-                    {{ severity }}
+                    {{ severity or 'Unknown' }}
                 </div>
                 {% endfor %}
             </div>
@@ -551,9 +552,9 @@ class ReportGenerator:
             <h2>🔍 Vulnerability Assessment Results</h2>
             <h3>Detailed Vulnerability List</h3>
             {% for vuln in vulnerabilities %}
-            <div class="vulnerability {{ vuln.severity.lower() }}">
+            <div class="vulnerability {{ (vuln.severity or 'info')|lower }}">
                 <h4>{{ vuln.title }}</h4>
-                <span class="severity {{ vuln.severity.lower() }}">{{ vuln.severity }}</span>
+                <span class="severity {{ (vuln.severity or 'info')|lower }}">{{ vuln.severity or 'Unknown' }}</span>
                 <p><strong>Type:</strong> {{ vuln.type }}</p>
                 <p><strong>Description:</strong> {{ vuln.description }}</p>
                 <p><strong>Recommendation:</strong> {{ vuln.recommendation }}</p>

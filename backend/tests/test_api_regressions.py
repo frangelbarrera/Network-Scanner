@@ -59,12 +59,15 @@ class TestTargetValidationRegression(unittest.TestCase):
 class TestNmapFailureRegression(unittest.TestCase):
     def test_vulnerability_scan_reports_nmap_execution_failure(self):
         scanner = VulnScanner()
-        scanner.nm = MagicMock()
-        scanner.nm.scan.return_value = {
-            "nmap": {"scaninfo": {"error": ["local nmap failure\n"]}},
-        }
+        # _quick_port_scan builds a PortScanner per call (a shared instance
+        # is not thread-safe), so the failure is injected at the class level.
+        with patch('modules.scanner._raw_socket_available', return_value=True), \
+                patch('modules.scanner.nmap.PortScanner') as scanner_cls:
+            scanner_cls.return_value.scan.return_value = {
+                "nmap": {"scaninfo": {"error": ["local nmap failure\n"]}},
+            }
 
-        result = scanner.scan_target("127.0.0.1", "basic")
+            result = scanner.scan_target("127.0.0.1", "basic")
 
         self.assertIn("error", result)
         self.assertIn("Nmap execution failed", result["error"])

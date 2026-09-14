@@ -68,10 +68,18 @@ const AIAssistant = ({ showNotification }) => {
       } : { learning_mode: learningMode };
 
       const response = await chatWithAI(inputMessage, context);
-      
+
+      // The API returns { message, response: { response, ... }, timestamp };
+      // older payloads replied with a bare string. Handle both shapes so the
+      // message list always receives plain text (objects crash React render).
+      const candidate = typeof response === 'string'
+        ? response
+        : (response?.response?.response ?? response?.response);
+      const content = typeof candidate === 'string' ? candidate : '';
+
       const aiMessage = {
         type: 'ai',
-        content: response.response || response,
+        content,
         timestamp: new Date()
       };
 

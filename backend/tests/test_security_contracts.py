@@ -80,19 +80,22 @@ class TestDatabaseBinding(unittest.TestCase):
 class TestReconnaissanceContract(unittest.TestCase):
     def test_port_scan_exposes_python_nmap_execution_errors(self):
         module = ReconModule()
-        module.nm = MagicMock()
-        module.nm.scan.return_value = {
-            'nmap': {'scaninfo': {'error': ['raw socket permission denied\\n']}},
-        }
+        # port_scan builds a PortScanner per call (a shared instance is not
+        # thread-safe), so the failure is injected at the class level.
+        with patch('modules.scanner._raw_socket_available', return_value=True), \
+                patch('modules.reconnaissance.nmap.PortScanner') as scanner_cls:
+            scanner_cls.return_value.scan.return_value = {
+                'nmap': {'scaninfo': {'error': ['raw socket permission denied\\n']}},
+            }
 
-        result = module.port_scan('127.0.0.1', '1-2,80')
+            result = module.port_scan('127.0.0.1', '1-2,80')
 
         self.assertIn('Nmap execution failed', result['error'])
         self.assertIn('raw socket permission denied', result['error'])
-        module.nm.scan.assert_called_once_with(
+        scanner_cls.return_value.scan.assert_called_once_with(
             '127.0.0.1',
             '1-2,80',
-            arguments='--privileged -sS -sV -O',
+            arguments='-sS -sV -O',
         )
 
 

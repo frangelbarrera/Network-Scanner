@@ -1,3 +1,4 @@
+import logging
 import nmap
 import dns.resolver
 import whois
@@ -6,11 +7,14 @@ from datetime import datetime
 import socket
 from concurrent.futures import ThreadPoolExecutor
 
+from modules.scanner import _nmap_scan_args
+
+logger = logging.getLogger(__name__)
+
 class ReconModule:
     """Reconnaissance module for subdomain enumeration, port scanning, DNS enumeration, and WHOIS lookups"""
     
     def __init__(self):
-        self.nm = nmap.PortScanner()
         self.common_subdomains = [
             'www', 'mail', 'ftp', 'localhost', 'webmail', 'smtp', 'pop', 'ns1', 'webdisk',
             'ns2', 'cpanel', 'whm', 'autodiscover', 'autoconfig', 'ns3', 'm', 'test',
@@ -80,9 +84,16 @@ class ReconModule:
     def _cert_transparency_search(self, domain):
         """Search certificate transparency logs for subdomains"""
         try:
+            # crt.sh matches lowercase names; an uppercase domain from the
+            # client would silently return zero matches.
+            domain = domain.strip().lower()
             url = f"https://crt.sh/?q=%.{domain}&output=json"
-            response = requests.get(url, timeout=10)
-            
+            response = requests.get(
+                url,
+                timeout=10,
+                headers={'User-Agent': 'Network-Scanner/1.0 (security auditing tool)'},
+            )
+
             if response.status_code == 200:
                 cert_data = response.json()
                 subdomains = set()
@@ -118,8 +129,10 @@ class ReconModule:
             
             for ns in ns_records:
                 try:
-                    # Attempt zone transfer
-                    zone = dns.zone.from_xfr(dns.query.xfr(str(ns), domain))
+                    # Attempt zone transfer. Without an explicit lifetime a
+                    # silent nameserver would leave the request thread hanging
+                    # forever (dnspython does not apply a default cap here).
+                    zone = dns.zone.from_xfr(dns.query.xfr(str(ns), domain, timeout=5, lifetime=15))
                     for name in zone.nodes.keys():
                         subdomain = f"{name}.{domain}"
                         if subdomain != domain:
@@ -157,27 +170,36 @@ class ReconModule:
         try:
             print(f"[INFO] Starting port scan on {target} (ports {port_range})")
             
+            # A shared PortScanner instance is not thread-safe under the
+            # threaded WSGI server: python-nmap stores per-scan state on the
+            # object, so concurrent scans would read each other's results.
+            nm = nmap.PortScanner()
             # The API validator already accepts Nmap's numeric single-port,
             # range, and comma-separated range syntax. Preserve that validated
             # expression so values such as "1-2,80" reach Nmap unchanged.
-            scan_output = self.nm.scan(target, port_range, arguments='--privileged -sS -sV -O')
+            # OS detection (-O) only runs when raw sockets are available.
+            scan_args = _nmap_scan_args()
+            if '-sS' in scan_args:
+                scan_args += ' -O'
+            scan_output = nm.scan(target, port_range, arguments=scan_args)
             scan_error = scan_output.get('nmap', {}).get('scaninfo', {}).get('error')
             if scan_error:
                 message = ''.join(scan_error) if isinstance(scan_error, list) else str(scan_error)
                 raise RuntimeError(f"Nmap execution failed: {message.strip()}")
 
             results = []
-            for host in self.nm.all_hosts():
+            for host in nm.all_hosts():
                 host_info = {
                     'host': host,
-                    'state': self.nm[host].state(),
-                    'open_ports': []
+                    'state': nm[host].state(),
+                    'open_ports': [],
+                    'os_match': [o.get('name') for o in nm[host].get('osmatch', [])]
                 }
                 
-                for proto in self.nm[host].all_protocols():
-                    ports = self.nm[host][proto].keys()
+                for proto in nm[host].all_protocols():
+                    ports = nm[host][proto].keys()
                     for port in ports:
-                        port_info = self.nm[host][proto][port]
+                        port_info = nm[host][proto][port]
                         if port_info['state'] == 'open':
                             host_info['open_ports'].append({
                                 'port': port,
@@ -209,27 +231,36 @@ class ReconModule:
         """Perform WHOIS lookup"""
         try:
             print(f"[INFO] Performing WHOIS lookup for {domain}")
-            
-            w = whois.whois(domain)
-            
+
+            # The pinned whois==0.9.27 release exposes query(), while older
+            # builds of the same package expose whois(). Support both entry
+            # points so the lookup does not depend on which variant was
+            # resolved at install time.
+            lookup = getattr(whois, 'whois', None) or getattr(whois, 'query', None)
+            if lookup is None:
+                raise RuntimeError("whois library exposes neither whois() nor query()")
+            w = lookup(domain)
+            if w is None:
+                return {'error': f'No WHOIS data available for {domain}', 'domain': domain}
+
             result = {
                 'domain': domain,
-                'registrar': w.registrar,
-                'creation_date': str(w.creation_date) if w.creation_date else None,
-                'expiration_date': str(w.expiration_date) if w.expiration_date else None,
-                'name_servers': w.name_servers if w.name_servers else [],
-                'status': w.status if w.status else [],
-                'emails': w.emails if w.emails else [],
-                'org': w.org,
-                'country': w.country,
+                'registrar': getattr(w, 'registrar', None),
+                'creation_date': str(w.creation_date) if getattr(w, 'creation_date', None) else None,
+                'expiration_date': str(w.expiration_date) if getattr(w, 'expiration_date', None) else None,
+                'name_servers': list(w.name_servers) if getattr(w, 'name_servers', None) else [],
+                'status': w.status if getattr(w, 'status', None) else [],
+                'emails': w.emails if getattr(w, 'emails', None) else [],
+                'org': getattr(w, 'org', None),
+                'country': getattr(w, 'country', None),
                 'timestamp': datetime.utcnow().isoformat()
             }
-            
+
             print(f"[SUCCESS] WHOIS lookup completed for {domain}")
             return result
-            
+
         except Exception as e:
-            print(f"[ERROR] WHOIS lookup failed: {str(e)}")
+            logger.error("WHOIS lookup failed for %s: %s", domain, e)
             return {'error': str(e), 'domain': domain}
     
     def dns_enumeration(self, domain):
