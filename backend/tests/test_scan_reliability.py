@@ -98,6 +98,22 @@ class TestPerScanPortScannerInstances(unittest.TestCase):
 
 
 class TestWhoisLibraryCompatibility(unittest.TestCase):
+    def test_whois_lookup_reports_timeout_with_description(self):
+        """A hung WHOIS server must surface a descriptive error (an empty
+        message would be treated as success by the API error contract)."""
+        module = ReconModule()
+        from concurrent.futures import TimeoutError as FutureTimeoutError
+
+        with patch.object(sys.modules['whois'], 'whois', None, create=True), \
+                patch.object(sys.modules['whois'], 'query', lambda d: d, create=True), \
+                patch('modules.reconnaissance.ThreadPoolExecutor') as executor_cls:
+            executor_cls.return_value.submit.return_value.result.side_effect = FutureTimeoutError()
+
+            result = module.whois_lookup('example.test')
+
+        self.assertIn('timed out', result['error'])
+        self.assertEqual(result['domain'], 'example.test')
+
     def test_whois_lookup_supports_query_api(self):
         """whois==0.9.27 on PyPI exposes query() instead of whois(); the
         lookup must work with both entry points."""

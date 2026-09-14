@@ -5,14 +5,20 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from jinja2 import Environment
+import glob
 import json
+import logging
 import os
+import time
 from datetime import datetime
-import matplotlib.pyplot as plt
-import seaborn as sns
-from io import BytesIO
-import base64
 from xml.sax.saxutils import escape as xml_escape
+
+logger = logging.getLogger(__name__)
+
+
+# Generated reports accumulate on every scan export; drop files older than
+# the retention window so long-lived deployments don't grow without bound.
+REPORT_RETENTION_DAYS = 7
 
 
 def _escape_pdf_text(value):
@@ -89,13 +95,25 @@ class ReportGenerator:
             else:
                 raise ValueError(f"Unsupported report format: {report_format}")
 
-            print(f"[SUCCESS] Report generated: {filepath}")
+            logger.info("Report generated: %s", filepath)
+            self._purge_stale_reports(reports_dir)
             return filepath
 
         except Exception as e:
-            print(f"[ERROR] Report generation failed: {str(e)}")
+            logger.error("Report generation failed: %s", e)
             raise e
-    
+
+    def _purge_stale_reports(self, reports_dir, max_age_days=REPORT_RETENTION_DAYS):
+        """Delete generated reports older than the retention window."""
+        cutoff = time.time() - max_age_days * 86400
+        for pattern in ("security_report_*.html", "security_report_*.pdf"):
+            for filepath in glob.glob(os.path.join(reports_dir, pattern)):
+                try:
+                    if os.path.getmtime(filepath) < cutoff:
+                        os.remove(filepath)
+                except OSError:
+                    continue
+
     def _generate_pdf_report(self, scan_data, filepath):
         """Generate PDF report"""
         doc = SimpleDocTemplate(filepath, pagesize=A4, topMargin=1*inch)

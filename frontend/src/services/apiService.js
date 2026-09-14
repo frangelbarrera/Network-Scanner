@@ -15,11 +15,19 @@ export const setApiAccessToken = (token) => {
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000, // 60 seconds for long-running scans
+  timeout: 60000, // default for quick endpoints
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Scan requests can legitimately run for minutes (nmap with service
+// detection); align with the gateway (nginx proxy_read_timeout) and the CLI
+// (300 s) so the UI does not abort while the backend is still scanning.
+const SCAN_TIMEOUT_MS = 300000;
+
+const scanRequest = (method, url, data) =>
+  apiClient.request({ method, url, data, timeout: SCAN_TIMEOUT_MS });
 
 // Request interceptor for auth
 apiClient.interceptors.request.use(
@@ -52,18 +60,18 @@ const apiService = {
   healthCheck: () => apiClient.get('/health'),
 
   // Reconnaissance endpoints
-  scanSubdomains: (domain) => apiClient.post('/scan/subdomain', { domain }),
-  
-  scanPorts: (target, portRange = '1-1000') => 
-    apiClient.post('/scan/ports', { target, port_range: portRange }),
-  
-  whoisLookup: (domain) => apiClient.post('/scan/whois', { domain }),
-  
-  dnsEnumeration: (domain) => apiClient.post('/scan/dns', { domain }),
+  scanSubdomains: (domain) => scanRequest('post', '/scan/subdomain', { domain }),
+
+  scanPorts: (target, portRange = '1-1000') =>
+    scanRequest('post', '/scan/ports', { target, port_range: portRange }),
+
+  whoisLookup: (domain) => scanRequest('post', '/scan/whois', { domain }),
+
+  dnsEnumeration: (domain) => scanRequest('post', '/scan/dns', { domain }),
 
   // Vulnerability scanning
   scanVulnerabilities: (target, scanType = 'basic') =>
-    apiClient.post('/vulnerability/scan', { target, scan_type: scanType }),
+    scanRequest('post', '/vulnerability/scan', { target, scan_type: scanType }),
 
   // AI Assistant
   chatWithAI: (message, context = {}) =>

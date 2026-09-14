@@ -5,7 +5,7 @@ import whois
 import requests
 from datetime import datetime
 import socket
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 from modules.scanner import _nmap_scan_args
 
@@ -33,7 +33,7 @@ class ReconModule:
             subdomains = set()
             
             # Method 1: Common subdomain brute force
-            print(f"[INFO] Starting subdomain enumeration for {domain}")
+            logger.info(f"Starting subdomain enumeration for {domain}")
             subdomains.update(self._brute_force_subdomains(domain))
             
             # Method 2: Certificate transparency logs
@@ -55,11 +55,11 @@ class ReconModule:
                 'timestamp': datetime.utcnow().isoformat()
             }
             
-            print(f"[SUCCESS] Found {len(verified_subdomains)} subdomains for {domain}")
+            logger.info(f"Found {len(verified_subdomains)} subdomains for {domain}")
             return result
             
         except Exception as e:
-            print(f"[ERROR] Subdomain enumeration failed: {str(e)}")
+            logger.error(f"Subdomain enumeration failed: {str(e)}")
             return {'error': str(e), 'domain': domain}
     
     def _brute_force_subdomains(self, domain):
@@ -71,7 +71,7 @@ class ReconModule:
             try:
                 socket.gethostbyname(full_domain)
                 found_subdomains.append(full_domain)
-                print(f"[FOUND] {full_domain}")
+                logger.info(f"Subdomain found: {full_domain}")
             except socket.gaierror:
                 pass
         
@@ -112,11 +112,11 @@ class ReconModule:
                             if domain_name.endswith(f'.{domain}') or domain_name == domain:
                                 subdomains.add(domain_name)
                 
-                print(f"[INFO] Certificate transparency found {len(subdomains)} entries")
+                logger.info(f"Certificate transparency found {len(subdomains)} entries")
                 return list(subdomains)
             
         except Exception as e:
-            print(f"[WARNING] Certificate transparency search failed: {str(e)}")
+            logger.warning(f"Certificate transparency search failed: {str(e)}")
         
         return []
     
@@ -138,14 +138,14 @@ class ReconModule:
                         if subdomain != domain:
                             subdomains.append(subdomain)
                     
-                    print(f"[SUCCESS] Zone transfer successful from {ns}")
+                    logger.info(f"Zone transfer successful from {ns}")
                     break
                     
                 except Exception:
                     continue
                     
         except Exception as e:
-            print(f"[INFO] Zone transfer not available: {str(e)}")
+            logger.info(f"Zone transfer not available: {str(e)}")
         
         return subdomains
     
@@ -168,7 +168,7 @@ class ReconModule:
     def port_scan(self, target, port_range='1-1000'):
         """Perform port scan on target"""
         try:
-            print(f"[INFO] Starting port scan on {target} (ports {port_range})")
+            logger.info(f"Starting port scan on {target} (ports {port_range})")
             
             # A shared PortScanner instance is not thread-safe under the
             # threaded WSGI server: python-nmap stores per-scan state on the
@@ -220,17 +220,17 @@ class ReconModule:
                 'timestamp': datetime.utcnow().isoformat()
             }
             
-            print(f"[SUCCESS] Port scan completed for {target}")
+            logger.info(f"Port scan completed for {target}")
             return result
             
         except Exception as e:
-            print(f"[ERROR] Port scan failed: {str(e)}")
+            logger.error(f"Port scan failed: {str(e)}")
             return {'error': str(e), 'target': target}
     
     def whois_lookup(self, domain):
         """Perform WHOIS lookup"""
         try:
-            print(f"[INFO] Performing WHOIS lookup for {domain}")
+            logger.info(f"Performing WHOIS lookup for {domain}")
 
             # The pinned whois==0.9.27 release exposes query(), while older
             # builds of the same package expose whois(). Support both entry
@@ -239,7 +239,15 @@ class ReconModule:
             lookup = getattr(whois, 'whois', None) or getattr(whois, 'query', None)
             if lookup is None:
                 raise RuntimeError("whois library exposes neither whois() nor query()")
-            w = lookup(domain)
+            # The whois package exposes no per-call timeout; bound the wait so
+            # a slow WHOIS server cannot pin request threads indefinitely.
+            executor = ThreadPoolExecutor(max_workers=1)
+            try:
+                w = executor.submit(lookup, domain).result(timeout=20)
+            except FutureTimeoutError:
+                return {'error': f'WHOIS lookup timed out for {domain}', 'domain': domain}
+            finally:
+                executor.shutdown(wait=False)
             if w is None:
                 return {'error': f'No WHOIS data available for {domain}', 'domain': domain}
 
@@ -256,7 +264,7 @@ class ReconModule:
                 'timestamp': datetime.utcnow().isoformat()
             }
 
-            print(f"[SUCCESS] WHOIS lookup completed for {domain}")
+            logger.info(f"WHOIS lookup completed for {domain}")
             return result
 
         except Exception as e:
@@ -266,7 +274,7 @@ class ReconModule:
     def dns_enumeration(self, domain):
         """Perform comprehensive DNS enumeration"""
         try:
-            print(f"[INFO] Starting DNS enumeration for {domain}")
+            logger.info(f"Starting DNS enumeration for {domain}")
             
             dns_records = {}
             record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA']
@@ -292,9 +300,9 @@ class ReconModule:
                 'timestamp': datetime.utcnow().isoformat()
             }
             
-            print(f"[SUCCESS] DNS enumeration completed for {domain}")
+            logger.info(f"DNS enumeration completed for {domain}")
             return result
             
         except Exception as e:
-            print(f"[ERROR] DNS enumeration failed: {str(e)}")
+            logger.error(f"DNS enumeration failed: {str(e)}")
             return {'error': str(e), 'domain': domain}

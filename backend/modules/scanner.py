@@ -48,7 +48,7 @@ class VulnScanner:
     def scan_target(self, target, scan_type='basic'):
         """Perform vulnerability scan on target"""
         try:
-            print(f"[INFO] Starting vulnerability scan on {target} (type: {scan_type})")
+            logger.info(f"Starting vulnerability scan on {target} (type: {scan_type})")
             
             vulnerabilities = []
             
@@ -79,11 +79,11 @@ class VulnScanner:
                 'timestamp': datetime.utcnow().isoformat()
             }
             
-            print(f"[SUCCESS] Vulnerability scan completed for {target}. Found {len(vulnerabilities)} issues.")
+            logger.info(f"Vulnerability scan completed for {target}. Found {len(vulnerabilities)} issues.")
             return result
             
         except Exception as e:
-            print(f"[ERROR] Vulnerability scan failed: {str(e)}")
+            logger.error(f"Vulnerability scan failed: {str(e)}")
             return {'error': str(e), 'target': target}
     
     def _quick_port_scan(self, target):
@@ -135,7 +135,7 @@ class VulnScanner:
                         vulnerabilities.append(vuln)
             
         except Exception as e:
-            print(f"[WARNING] Basic vulnerability scan error: {str(e)}")
+            logger.warning(f"Basic vulnerability scan error: {str(e)}")
         
         return vulnerabilities
     
@@ -178,7 +178,7 @@ class VulnScanner:
                     continue
                     
         except Exception as e:
-            print(f"[WARNING] Web vulnerability scan error: {str(e)}")
+            logger.warning(f"Web vulnerability scan error: {str(e)}")
         
         return vulnerabilities
     
@@ -244,7 +244,7 @@ class VulnScanner:
                 })
                 
         except Exception as e:
-            print(f"[WARNING] Network vulnerability scan error: {str(e)}")
+            logger.warning(f"Network vulnerability scan error: {str(e)}")
         
         return vulnerabilities
     

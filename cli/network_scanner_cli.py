@@ -77,7 +77,15 @@ class NetworkScannerCLI:
             self.print_status("Request timed out", "ERROR")
             return None
         except requests.exceptions.HTTPError as e:
-            self.print_status(f"HTTP Error: {e}", "ERROR")
+            # Surface the API's own error message (validation details such as
+            # an invalid port range) instead of the bare status line.
+            detail = None
+            if e.response is not None:
+                try:
+                    detail = e.response.json().get("error")
+                except ValueError:
+                    detail = None
+            self.print_status(f"HTTP Error: {detail or e}", "ERROR")
             return None
         except Exception as e:
             self.print_status(f"Unexpected error: {e}", "ERROR")

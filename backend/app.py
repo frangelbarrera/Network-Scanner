@@ -5,10 +5,14 @@ from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 from functools import wraps
+from werkzeug.exceptions import HTTPException
+import hashlib
 import hmac
+import json
 import os
 import re
 import shlex
+import threading
 from datetime import datetime
 
 
@@ -33,6 +37,10 @@ VALID_VULNERABILITY_SCAN_TYPES = {"basic", "web", "network", "comprehensive"}
 VALID_AUTOMATED_SCAN_TYPES = {"subdomain", "port", "vuln", "dns"}
 PORT_RANGE_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
 
+# WebSocket events are not covered by flask-limiter, so cap how many
+# automated scans may run at the same time on the scanner host.
+SCAN_SLOTS = threading.BoundedSemaphore(int(os.environ.get("SCAN_CONCURRENCY", "2")))
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -50,6 +58,16 @@ if is_production and api_access_token in PRODUCTION_API_TOKEN_PLACEHOLDERS:
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///network_scanner.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# Reject oversized bodies early (scan payloads and report data are small).
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+
+if os.environ.get("TRUST_PROXY") == "1":
+    # Deployment behind the reverse proxy: honor X-Forwarded-* so the real
+    # client address drives per-client rate limiting. Off by default to keep
+    # header spoofing ineffective in direct deployments.
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # CORS is unnecessary for the default same-origin deployment. Operators can
 # explicitly configure trusted origins when hosting the UI separately.
@@ -73,7 +91,10 @@ def rate_limit_key():
         and token
         and hmac.compare_digest(token, api_access_token)
     ):
-        return f"token:{api_access_token}"
+        # Hash the token: limiter keys end up in the configured storage and
+        # must not leak the credential itself.
+        digest = hashlib.sha256(api_access_token.encode()).hexdigest()[:32]
+        return f"token:{digest}"
     return get_remote_address()
 
 
@@ -166,6 +187,8 @@ def validate_port_range(value):
     if not isinstance(value, str):
         return None, "Port range must be a string"
     port_range = value.strip()
+    if len(port_range) > 200:
+        return None, "Port range is too long"
     if not PORT_RANGE_PATTERN.fullmatch(port_range):
         return None, "Port range must contain only ports, ranges, and commas"
 
@@ -215,8 +238,11 @@ def scan_subdomains():
             "timestamp": datetime.utcnow().isoformat()
         })
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except HTTPException:
+        raise
+    except Exception:
+        app.logger.exception("Unhandled error in %s", request.path)
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/scan/ports', methods=['POST'])
 @limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
@@ -255,8 +281,11 @@ def scan_ports():
             "timestamp": datetime.utcnow().isoformat()
         })
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except HTTPException:
+        raise
+    except Exception:
+        app.logger.exception("Unhandled error in %s", request.path)
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/scan/whois', methods=['POST'])
 @limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
@@ -283,8 +312,11 @@ def whois_lookup():
             "timestamp": datetime.utcnow().isoformat()
         })
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except HTTPException:
+        raise
+    except Exception:
+        app.logger.exception("Unhandled error in %s", request.path)
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/scan/dns', methods=['POST'])
 @limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
@@ -315,8 +347,11 @@ def dns_enumeration():
             "timestamp": datetime.utcnow().isoformat()
         })
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except HTTPException:
+        raise
+    except Exception:
+        app.logger.exception("Unhandled error in %s", request.path)
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/vulnerability/scan', methods=['POST'])
 @limiter.limit(os.environ.get("RATE_LIMIT_SCAN", "10 per minute"))
@@ -355,8 +390,11 @@ def vulnerability_scan():
             "timestamp": datetime.utcnow().isoformat()
         })
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except HTTPException:
+        raise
+    except Exception:
+        app.logger.exception("Unhandled error in %s", request.path)
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/report/generate', methods=['POST'])
 @limiter.limit(os.environ.get("RATE_LIMIT_REPORT", "20 per minute"))
@@ -377,15 +415,23 @@ def generate_report():
         
         # Generate report
         report_path = report_generator.generate_report(scan_data, report_format.lower())
-        
+
         return jsonify({
-            "report_path": report_path,
+            "report_path": os.path.basename(report_path),
             "format": report_format.lower(),
             "timestamp": datetime.utcnow().isoformat()
         })
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except HTTPException:
+        raise
+    except Exception:
+        app.logger.exception("Unhandled error in %s", request.path)
+        return jsonify({"error": "Internal server error"}), 500
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Map oversized bodies to a 413 instead of a generic 500."""
+    return jsonify({"error": "Request body too large"}), 413
 
 @app.route('/api/report/download/<path:filename>', methods=['GET'])
 @require_api_token
@@ -408,9 +454,17 @@ def ai_chat():
             return jsonify({"error": "Request body must be a JSON object"}), 400
         message = payload.get('message')
         context = payload.get('context', {})
-        
-        if not message:
-            return jsonify({"error": "Message is required"}), 400
+
+        if not isinstance(message, str) or not (1 <= len(message) <= 4000):
+            return jsonify({"error": "Message must be a string of 1 to 4000 characters"}), 400
+        if not isinstance(context, dict):
+            return jsonify({"error": "Context must be a JSON object"}), 400
+
+        # Bound the scan data that travels into the prompt: full scan
+        # payloads can be large and every byte is billed as input tokens.
+        serialized_context = json.dumps(context, default=str)
+        if len(serialized_context) > 20000:
+            context = {"scan_results": "<omitted: context payload too large>", "note": "truncated"}
         
         # Get AI response
         response = ai_assistant.chat_response(message, context)
@@ -421,8 +475,11 @@ def ai_chat():
             "timestamp": datetime.utcnow().isoformat()
         })
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except HTTPException:
+        raise
+    except Exception:
+        app.logger.exception("Unhandled error in %s", request.path)
+        return jsonify({"error": "Internal server error"}), 500
 
 @socketio.on("connect")
 def authenticate_socket(auth):
@@ -456,37 +513,44 @@ def handle_automated_scan(data):
 
         # Preserve selection order while avoiding duplicate work.
         selected_scan_types = list(dict.fromkeys(scan_types))
-        emit("scan_status", {"status": "starting", "message": f"Starting automated scan for {target}"})
-        results = {}
 
-        for scan_type in selected_scan_types:
-            emit("scan_status", {"status": "running", "message": f"Running {scan_type} scan..."})
-            if scan_type == "subdomain":
-                scan_result = recon_module.find_subdomains(target)
-                result_key = "subdomains"
-            elif scan_type == "port":
-                scan_result = recon_module.port_scan(target)
-                result_key = "ports"
-            elif scan_type == "vuln":
-                scan_result = vuln_scanner.scan_target(target)
-                result_key = "vulnerabilities"
-            elif scan_type == "dns":
-                scan_result = recon_module.dns_enumeration(target)
-                result_key = "dns"
+        if not SCAN_SLOTS.acquire(blocking=False):
+            emit("scan_error", {"error": "An automated scan is already in progress, try again shortly"})
+            return
+        try:
+            emit("scan_status", {"status": "starting", "message": f"Starting automated scan for {target}"})
+            results = {}
 
-            scan_error = get_scan_error(scan_result)
-            if scan_error:
-                app.logger.error("Automated %s scan failed for %s: %s", scan_type, target, scan_error)
-                emit("scan_error", {
-                    "error": f"{scan_type} scan failed",
-                    "details": scan_error,
-                    "scan_type": scan_type,
-                })
-                return
-            results[result_key] = scan_result
+            for scan_type in selected_scan_types:
+                emit("scan_status", {"status": "running", "message": f"Running {scan_type} scan..."})
+                if scan_type == "subdomain":
+                    scan_result = recon_module.find_subdomains(target)
+                    result_key = "subdomains"
+                elif scan_type == "port":
+                    scan_result = recon_module.port_scan(target)
+                    result_key = "ports"
+                elif scan_type == "vuln":
+                    scan_result = vuln_scanner.scan_target(target)
+                    result_key = "vulnerabilities"
+                elif scan_type == "dns":
+                    scan_result = recon_module.dns_enumeration(target)
+                    result_key = "dns"
 
-        results["ai_analysis"] = ai_assistant.analyze_comprehensive_scan(results)
-        emit("scan_complete", {"results": results, "target": target})
+                scan_error = get_scan_error(scan_result)
+                if scan_error:
+                    app.logger.error("Automated %s scan failed for %s: %s", scan_type, target, scan_error)
+                    emit("scan_error", {
+                        "error": f"{scan_type} scan failed",
+                        "details": scan_error,
+                        "scan_type": scan_type,
+                    })
+                    return
+                results[result_key] = scan_result
+
+            results["ai_analysis"] = ai_assistant.analyze_comprehensive_scan(results)
+            emit("scan_complete", {"results": results, "target": target})
+        finally:
+            SCAN_SLOTS.release()
 
     except Exception:
         app.logger.exception("Automated scan failed")
