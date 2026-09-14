@@ -4,7 +4,7 @@
 
 Network Scanner is an open-source toolkit that combines DNS, WHOIS, subdomain, port and selected web checks with a CLI, web interface, structured reporting and optional AI-assisted analysis. It is designed for security research, education, laboratories and explicitly authorized assessments. Some checks are heuristic and their results require manual validation; this project is not a replacement for a professional penetration test or a full production security platform.
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
 [![License: MIT](https://img.shields.io/github/license/frangelbarrera/Network-Scanner?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/frangelbarrera/Network-Scanner?style=flat-square)](https://github.com/frangelbarrera/Network-Scanner/stargazers)
@@ -73,8 +73,8 @@ Scan only systems you own or have explicit permission to assess. Use production 
 
 ### Prerequisites
 
-- Python 3.9+ and pip
-- Node.js 16+ and npm
+- Python 3.10+ and pip (the Docker image runs Python 3.12)
+- Node.js 20+ and npm
 - nmap, dnsutils and whois (installed by `scripts/install.sh` on Ubuntu/Debian; the manual path requires installing them separately with the system package manager). Port and vulnerability scans use Nmap SYN/OS detection and may require root or `CAP_NET_RAW`; the Compose backend grants `NET_RAW`.
 
 ### Installation
@@ -141,6 +141,8 @@ python cli/network_scanner_cli.py --help
 python cli/network_scanner_cli.py subdomain example.com
 python cli/network_scanner_cli.py port 192.168.1.1 --port-range 1-1000
 python cli/network_scanner_cli.py vuln https://example.com --scan-type web
+python cli/network_scanner_cli.py dns example.com
+python cli/network_scanner_cli.py whois example.com
 # For protected deployments, set NETWORK_SCANNER_API_TOKEN or pass --api-token before the subcommand.
 ```
 
@@ -310,10 +312,11 @@ pip install -r backend/requirements.txt
 pip install -r cli/requirements.txt
 cd frontend && npm install && cd ..
 
-# Run the regression tests
+# Run the regression tests (backend, then CLI from the repository root)
 cd backend
-pytest -q
-python -m unittest ../cli/test_network_scanner_cli.py -v
+python -m unittest discover -s tests -v
+cd ..
+python -m unittest discover -s cli -p 'test_*.py' -v
 ```
 
 ##  Support

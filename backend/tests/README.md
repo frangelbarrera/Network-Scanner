@@ -45,13 +45,29 @@ that a specific bug pattern does not return:
    `import threading` (reconnaissance) and `import subprocess` (scanner) are
    gone.
 
+Additional suites cover later hardening batches:
+
+7. `test_api_regressions.py` — Nmap failure surfacing, PDF text escaping, and
+   API validation contracts (target and port-range rejection before scanning).
+8. `test_compatibility.py` — HTML report escaping and cross-version contracts.
+9. `test_scan_reliability.py` — per-scan `PortScanner` instances,
+   privilege-aware Nmap arguments, WHOIS library compatibility (both `whois()`
+   and `query()` entry points), zone-transfer timeouts, SSL verification
+   failure reporting, and report rendering with missing severity fields.
+10. `test_security_contracts.py` — production configuration, protected API
+    contracts and automated scan behavior.
+11. `test_api_hardening.py` — hashed rate-limit keys, opt-in ProxyFix, request
+    size limits, AI chat input validation, report filename responses and
+    retention, bounded automated-scan concurrency, OpenAI client guardrails
+    (timeouts, untrusted-data delimiters, labeled fallbacks), and empty-string
+    environment fallbacks.
+
 The tests use a mix of static source-code pattern matching (for bugs that are
 hard to trigger in unit tests) and functional tests with mocks (for the cert
 transparency bug, which can be triggered with mocked HTTP responses).
 
 ## Out of scope
 
-Other pyflakes warnings (unused imports in `app.py`, `report_generator.py`,
-`scanner.py`, `ai_assistant.py`) exist but are NOT covered by these regression
-tests because they were not part of the security-critical fix scope. They are
-documented in `SECURITY.md` as known issues.
+Residual lint-level warnings (unused imports outside the modules above) are
+not tracked here; the CI build gate keeps the tree compiling and the behavior
+contracts green.
