@@ -434,6 +434,7 @@ def request_entity_too_large(error):
     return jsonify({"error": "Request body too large"}), 413
 
 @app.route('/api/report/download/<path:filename>', methods=['GET'])
+@limiter.limit(os.environ.get("RATE_LIMIT_REPORT") or "20 per minute")
 @require_api_token
 def download_report(filename):
     """Download a generated report from the configured reports directory."""

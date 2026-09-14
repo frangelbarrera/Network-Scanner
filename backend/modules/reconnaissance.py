@@ -75,9 +75,11 @@ class ReconModule:
             except socket.gaierror:
                 pass
         
-        # Use ThreadPoolExecutor for concurrent subdomain checking
+        # Use ThreadPoolExecutor for concurrent subdomain checking; consuming
+        # the map iterator surfaces worker exceptions instead of burying them
+        # in futures that are never inspected.
         with ThreadPoolExecutor(max_workers=50) as executor:
-            executor.map(check_subdomain, self.common_subdomains)
+            list(executor.map(check_subdomain, self.common_subdomains))
         
         return found_subdomains
     
@@ -161,7 +163,9 @@ class ReconModule:
                 pass
         
         with ThreadPoolExecutor(max_workers=50) as executor:
-            executor.map(verify_subdomain, subdomains)
+            # Consume the map so worker exceptions propagate to the caller
+            # instead of dying with the uniterated futures.
+            list(executor.map(verify_subdomain, subdomains))
         
         return sorted(verified)
     
