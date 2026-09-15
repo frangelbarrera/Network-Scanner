@@ -36,6 +36,11 @@ PRODUCTION_API_TOKEN_PLACEHOLDERS = {
 VALID_VULNERABILITY_SCAN_TYPES = {"basic", "web", "network", "comprehensive"}
 VALID_AUTOMATED_SCAN_TYPES = {"subdomain", "port", "vuln", "dns"}
 PORT_RANGE_PATTERN = re.compile(r"^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$")
+# Downloads are restricted to the files this service generates: the reports
+# directory also holds operator notes (readme) that must not be served. The
+# pattern matches the security_report_YYYYMMDD_HHMMSS names the generator
+# emits (see ReportGenerator.generate_report).
+REPORT_FILENAME_PATTERN = re.compile(r"^security_report_\d{8}_\d{6}\.(?:html|pdf)$")
 
 # WebSocket events are not covered by flask-limiter, so cap how many
 # automated scans may run at the same time on the scanner host.
@@ -446,7 +451,7 @@ def download_report(filename):
     """Download a generated report from the configured reports directory."""
     reports_dir = os.environ.get('REPORTS_DIR', os.path.join(os.getcwd(), 'reports'))
     safe_filename = os.path.basename(filename)
-    if safe_filename != filename:
+    if safe_filename != filename or not REPORT_FILENAME_PATTERN.fullmatch(safe_filename):
         return jsonify({"error": "Invalid report filename"}), 400
     return send_from_directory(reports_dir, safe_filename, as_attachment=True)
 

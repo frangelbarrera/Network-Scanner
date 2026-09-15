@@ -269,6 +269,46 @@ class TestReportResponseContract(unittest.TestCase):
         )
 
 
+class TestReportDownloadFilter(unittest.TestCase):
+    def setUp(self):
+        self.client = application.app.test_client()
+        token = application.api_access_token
+        self.headers = {"Authorization": f"Bearer {token}"} if token else {}
+
+    def test_operator_files_in_the_reports_directory_are_not_served(self):
+        """The reports directory also holds operator notes (readme); only
+        files this service generates may be downloaded."""
+        response = self.client.get("/api/report/download/readme.md", headers=self.headers)
+        self.assertEqual(response.status_code, 400)
+
+    def test_generated_report_names_are_served_when_present(self):
+        import shutil
+        import tempfile
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            report_path = os.path.join(temp_dir, "security_report_20260915_000000.html")
+            with open(report_path, "w") as report_file:
+                report_file.write("<html></html>")
+            with patch.dict(os.environ, {"REPORTS_DIR": temp_dir}):
+                response = self.client.get(
+                    "/api/report/download/security_report_20260915_000000.html",
+                    headers=self.headers,
+                )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, b"<html></html>")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_path_traversal_is_still_rejected(self):
+        response = self.client.get(
+            "/api/report/download/..%2F..%2Fetc%2Fpasswd",
+            headers=self.headers,
+            follow_redirects=True,
+        )
+        self.assertIn(response.status_code, (308, 400))
+
+
 class TestOpenAIClientGuardrails(unittest.TestCase):
     def test_client_uses_bounded_timeout_and_retries(self):
         """The SDK default is a 10-minute timeout with retries; every hung
