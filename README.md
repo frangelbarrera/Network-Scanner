@@ -292,6 +292,7 @@ Generate structured security reports in multiple formats:
 - Only scan systems you own or have explicit permission to test
 - Some scans may be detected by security systems
 - Selected web checks currently allow self-signed certificates with disabled TLS certificate verification; this can permit man-in-the-middle interference with scanner traffic and must not be used where certificate validation is required
+- Report suspected vulnerabilities in this project privately following [SECURITY.md](SECURITY.md)
 - Follow responsible disclosure practices
 - Respect rate limits and target system resources
 - Review local laws and regulations before testing
@@ -323,7 +324,7 @@ python -m unittest discover -s cli -p 'test_*.py' -v
 
 -  **Documentation**: [Wiki](https://github.com/frangelbarrera/Network-Scanner/wiki)
 -  **Bug Reports**: [Issues](https://github.com/frangelbarrera/Network-Scanner/issues)
--  **Discussions**: [GitHub Discussions](https://github.com/frangelbarrera/Network-Scanner/discussions)
+-  **Security reports**: [SECURITY.md](SECURITY.md)
 
 ##  Acknowledgments
 

@@ -41,9 +41,10 @@ that a specific bug pattern does not return:
    `exist_ok=True`.
 5. `TestRequirementsTxt` — `jwt==1.3.1` is removed, and unused packages
    (pyjwt, bcrypt) stay out until the auth work that needs them lands.
-6. `TestNoUnusedImports` — dead `import subprocess`, `import json`,
-   `import threading` (reconnaissance) and `import subprocess` (scanner) are
-   gone.
+6. `TestNoUnusedImports` — dead `import subprocess`, `import json`
+   (reconnaissance) and `import subprocess` (scanner) are gone. The
+   `import threading` guard now asserts the import stays paired with the
+   bounded whois worker instead of regressing to a dead import.
 
 Additional suites cover later hardening batches:
 
@@ -51,16 +52,23 @@ Additional suites cover later hardening batches:
    API validation contracts (target and port-range rejection before scanning).
 8. `test_compatibility.py` — HTML report escaping and cross-version contracts.
 9. `test_scan_reliability.py` — per-scan `PortScanner` instances,
-   privilege-aware Nmap arguments, WHOIS library compatibility (both `whois()`
-   and `query()` entry points), zone-transfer timeouts, SSL verification
-   failure reporting, and report rendering with missing severity fields.
+   privilege-aware Nmap arguments, bounded Nmap runs (`--host-timeout` and
+   the process timeout), URL-shaped targets (bare hostname to Nmap, full
+   URL to the web checks, case-insensitive schemes, option-prefixed
+   hostnames refused), WHOIS library compatibility (both `whois()` and
+   `query()` entry points, plus the daemon-thread timeout bound),
+   zone-transfer timeouts, SSL verification failure reporting, and report
+   rendering with missing severity fields.
 10. `test_security_contracts.py` — production configuration, protected API
     contracts and automated scan behavior.
-11. `test_api_hardening.py` — hashed rate-limit keys, opt-in ProxyFix, request
-    size limits, AI chat input validation, report filename responses and
-    retention, bounded automated-scan concurrency, OpenAI client guardrails
-    (timeouts, untrusted-data delimiters, labeled fallbacks), and empty-string
-    environment fallbacks.
+11. `test_api_hardening.py` — hashed rate-limit keys, hostile
+    Authorization header values (non-ASCII tokens rejected with 401 and
+    kept inside the rate limit), opt-in ProxyFix, request size limits, AI
+    chat input validation, report filename responses and retention,
+    report download filtering, bounded automated-scan concurrency,
+    OpenAI client guardrails (timeouts, untrusted-data delimiters, the
+    analysis prompt cap, labeled fallbacks and component sources), and
+    empty-string environment fallbacks.
 
 The tests use a mix of static source-code pattern matching (for bugs that are
 hard to trigger in unit tests) and functional tests with mocks (for the cert
