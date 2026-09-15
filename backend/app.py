@@ -588,4 +588,14 @@ if __name__ == '__main__':
     # backend service so the container remains reachable on the Docker network.
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
     host = os.environ.get('HOST', '127.0.0.1')
-    socketio.run(app, host=host, port=5000, debug=debug_mode)
+    # flask-socketio refuses to serve through Werkzeug outside debug mode
+    # unless the operator acknowledges it; direct `python app.py` runs are
+    # local-only (127.0.0.1) and never run the Werkzeug debugger because
+    # debug stays off. Production deployments serve through gunicorn.
+    socketio.run(
+        app,
+        host=host,
+        port=5000,
+        debug=debug_mode,
+        allow_unsafe_werkzeug=True,
+    )
