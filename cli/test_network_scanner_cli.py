@@ -66,6 +66,32 @@ class TestWhoisResponseCompatibility(unittest.TestCase):
         self.assertIn('ns1.example.test', rendered)
 
 
+class TestDnsResponseCompatibility(unittest.TestCase):
+    def test_dns_unwraps_the_module_result_and_prints_record_types(self):
+        """The DNS endpoint nests the full module result under
+        "dns_records"; the CLI must print the record map instead of the
+        wrapper's keys (which rendered as letters of the domain)."""
+        cli = NetworkScannerCLI('http://scanner.example.test')
+        cli.make_request = lambda *args, **kwargs: {
+            'domain': 'example.test',
+            'dns_records': {
+                'domain': 'example.test',
+                'dns_records': {'A': ['192.0.2.10'], 'MX': ['10 mail.example.test']},
+                'timestamp': '2026-09-15T00:00:00',
+            },
+            'ai_analysis': {},
+        }
+
+        with patch('builtins.print') as print_mock:
+            self.assertTrue(cli.dns_enumeration('example.test'))
+
+        rendered = '\n'.join(' '.join(map(str, call.args)) for call in print_mock.call_args_list)
+        self.assertIn('A Records', rendered)
+        self.assertIn('192.0.2.10', rendered)
+        self.assertNotIn('domain Records', rendered)
+        self.assertNotIn('timestamp Records', rendered)
+
+
 class TestFallbackAnalysisLabeling(unittest.TestCase):
     def test_fallback_analysis_is_labeled_in_cli_output(self):
         """Heuristic fallback output must be distinguishable from model

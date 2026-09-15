@@ -241,6 +241,11 @@ class NetworkScannerCLI:
             return False
 
         dns_records = result.get("dns_records", {})
+        # The endpoint nests the full module result (domain, records,
+        # timestamp) under "dns_records"; unwrap the record map so the
+        # output lists record types instead of the wrapper's keys.
+        if isinstance(dns_records, dict):
+            dns_records = dns_records.get("dns_records", dns_records)
 
         print(f"\n{Fore.CYAN}DNS Records for {domain}:{Style.RESET_ALL}")
         for record_type, records in dns_records.items():
