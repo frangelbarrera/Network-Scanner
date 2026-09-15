@@ -69,17 +69,23 @@ const AIAssistant = ({ showNotification }) => {
 
       const response = await chatWithAI(inputMessage, context);
 
-      // The API returns { message, response: { response, ... }, timestamp };
+      // The API returns { message, response: { response, note }, timestamp };
       // older payloads replied with a bare string. Handle both shapes so the
       // message list always receives plain text (objects crash React render).
       const candidate = typeof response === 'string'
         ? response
         : (response?.response?.response ?? response?.response);
       const content = typeof candidate === 'string' ? candidate : '';
+      // The backend tags fallback replies with a note; keep it attached so
+      // the origin of the answer stays visible in the conversation.
+      const note = response && typeof response === 'object'
+        ? (response?.response?.note ?? null)
+        : null;
 
       const aiMessage = {
         type: 'ai',
         content,
+        note,
         timestamp: new Date()
       };
 
@@ -170,6 +176,11 @@ const AIAssistant = ({ showNotification }) => {
                         <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
                           {message.content}
                         </Typography>
+                        {message.note && (
+                          <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', mt: 1 }}>
+                            {message.note}
+                          </Typography>
+                        )}
                         <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', mt: 1 }}>
                           {message.timestamp.toLocaleTimeString()}
                         </Typography>

@@ -418,6 +418,44 @@ class TestOpenAIClientGuardrails(unittest.TestCase):
         second_call = client_mock.chat.completions.create.call_args_list[1]
         self.assertNotIn("response_format", second_call.kwargs)
 
+    def test_analysis_prompt_input_is_capped(self):
+        """Oversized scan payloads exceed the model context window and turn
+        every analysis into a rejected request plus a silent fallback; the
+        prompt must carry a bounded slice of the data instead."""
+        assistant = AIAssistant()
+        with patch.object(assistant, "api_key", "test-key"), \
+                patch.object(assistant, "client") as client_mock:
+            client_mock.chat.completions.create.return_value.choices = [
+                MagicMock(message=MagicMock(content='{"risk_level": "Low"}'))
+            ]
+            assistant.analyze_vulnerabilities({
+                "target": "example.test",
+                "vulnerabilities": [
+                    {"title": "Finding", "description": "x" * 500}
+                    for _ in range(150)
+                ],
+            })
+
+        user_content = client_mock.chat.completions.create.call_args.kwargs["messages"][1]["content"]
+        self.assertLess(len(user_content), 25000)
+        self.assertIn("<truncated", user_content)
+
+    def test_comprehensive_analysis_reports_component_sources(self):
+        """The aggregate dropped each component's source label, so operators
+        could not tell heuristic fallback output from model analysis."""
+        assistant = AIAssistant()
+        with patch.object(assistant, "api_key", ""):
+            result = assistant.analyze_comprehensive_scan({
+                "subdomains": {"subdomains": [], "domain": "example.test"},
+                "ports": {"scan_results": [], "target": "example.test"},
+                "vulnerabilities": {"vulnerabilities": [], "target": "example.test"},
+            })
+
+        self.assertEqual(
+            result["sources"],
+            {"subdomains": "fallback", "ports": "fallback", "vulnerabilities": "fallback"},
+        )
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

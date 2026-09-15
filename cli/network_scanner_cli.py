@@ -304,6 +304,13 @@ class NetworkScannerCLI:
 
         print(f"\n{Back.BLUE}{Fore.WHITE} 🤖 AI SECURITY ANALYSIS {Style.RESET_ALL}")
 
+        sources = analysis.get("sources") or {}
+        if analysis.get("source") == "fallback" or "fallback" in sources.values():
+            print(
+                f"{Fore.YELLOW}Note:{Style.RESET_ALL} produced with built-in fallback "
+                "heuristics (no AI key configured or the AI request failed)"
+            )
+
         if "assessment" in analysis:
             print(f"\n{Fore.CYAN}Assessment:{Style.RESET_ALL}")
             print(f"  {analysis['assessment']}")

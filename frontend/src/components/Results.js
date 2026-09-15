@@ -193,11 +193,23 @@ const Results = ({ showNotification }) => {
   const renderAIAnalysis = (aiAnalysis) => {
     if (!aiAnalysis) return null;
 
+    // Analyses degrade to built-in heuristics when no AI key is configured
+    // or the model request fails; that origin must stay visible instead of
+    // masquerading as a model assessment.
+    const fellBack = aiAnalysis.source === 'fallback'
+      || Object.values(aiAnalysis.sources || {}).includes('fallback');
+
     return (
       <Box className="ai-analysis" sx={{ mt: 2 }}>
         <Typography variant="h6" gutterBottom>
           🤖 AI Security Analysis
         </Typography>
+
+        {fellBack && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Produced with built-in fallback heuristics (no AI key configured or the AI request failed).
+          </Typography>
+        )}
         
         {aiAnalysis.assessment && (
           <Typography variant="body1" sx={{ mb: 2 }}>

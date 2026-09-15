@@ -66,5 +66,34 @@ class TestWhoisResponseCompatibility(unittest.TestCase):
         self.assertIn('ns1.example.test', rendered)
 
 
+class TestFallbackAnalysisLabeling(unittest.TestCase):
+    def test_fallback_analysis_is_labeled_in_cli_output(self):
+        """Heuristic fallback output must be distinguishable from model
+        analysis in the terminal too, not only in the API payload."""
+        cli = NetworkScannerCLI('http://scanner.example.test')
+
+        with patch('builtins.print') as print_mock:
+            cli.print_ai_analysis({
+                'assessment': 'Found 0 open ports.',
+                'risk_level': 'Low',
+                'source': 'fallback',
+            })
+
+        rendered = '\n'.join(' '.join(map(str, call.args)) for call in print_mock.call_args_list)
+        self.assertIn('fallback', rendered)
+
+    def test_fallback_component_sources_are_labeled_in_cli_output(self):
+        cli = NetworkScannerCLI('http://scanner.example.test')
+
+        with patch('builtins.print') as print_mock:
+            cli.print_ai_analysis({
+                'findings': ['Port scanning: Found 2 open ports.'],
+                'sources': {'ports': 'fallback'},
+            })
+
+        rendered = '\n'.join(' '.join(map(str, call.args)) for call in print_mock.call_args_list)
+        self.assertIn('fallback', rendered)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

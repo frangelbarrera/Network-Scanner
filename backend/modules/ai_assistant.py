@@ -18,6 +18,12 @@ DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 # instruction so the model never treats it as instructions.
 SCAN_DATA_TEMPLATE = "<<<SCAN_DATA\n{data}\nSCAN_DATA>>>"
 
+# Bound the scan data that travels into any analysis prompt: oversized
+# payloads (hundreds of findings) exceed the model's context window and turn
+# every analysis into a rejected request followed by a silent fallback. The
+# chat endpoint applies the same budget to its context payload.
+MAX_SCAN_DATA_CHARS = 20000
+
 
 def _sanitize_scan_data(text):
     """Break up delimiter markers inside untrusted data.
@@ -49,13 +55,17 @@ class AIAssistant:
 
     def _complete_json(self, instruction, scan_data_text, max_tokens):
         """Run one analysis completion and parse the model's JSON reply."""
+        sanitized = _sanitize_scan_data(scan_data_text)
+        if len(sanitized) > MAX_SCAN_DATA_CHARS:
+            sanitized = (
+                sanitized[:MAX_SCAN_DATA_CHARS]
+                + "\n<truncated: scan data exceeded the analysis prompt budget>"
+            )
         messages = [
             {"role": "system", "content": ANALYSIS_SYSTEM_PROMPT},
             {
                 "role": "user",
-                "content": instruction + "\n\n" + SCAN_DATA_TEMPLATE.format(
-                    data=_sanitize_scan_data(scan_data_text)
-                ),
+                "content": instruction + "\n\n" + SCAN_DATA_TEMPLATE.format(data=sanitized),
             },
         ]
         model = os.getenv("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
@@ -344,24 +354,30 @@ class AIAssistant:
                 "findings": [],
                 "recommendations": [],
                 "overall_risk": "Medium",
-                "next_steps": []
+                "next_steps": [],
+                # Per-component origin so operators can tell heuristic
+                # fallback output from model analysis in the aggregate too.
+                "sources": {},
             }
 
             # Analyze each component
             if 'subdomains' in all_results:
                 subdomain_analysis = self.analyze_subdomains(all_results['subdomains'])
+                analysis['sources']['subdomains'] = subdomain_analysis.get('source', 'model')
                 analysis['findings'].append(f"Subdomain enumeration: {subdomain_analysis.get('assessment', 'Completed')}")
                 if 'next_steps' in subdomain_analysis:
                     analysis['next_steps'].extend(subdomain_analysis['next_steps'])
 
             if 'ports' in all_results:
                 port_analysis = self.analyze_ports(all_results['ports'])
+                analysis['sources']['ports'] = port_analysis.get('source', 'model')
                 analysis['findings'].append(f"Port scanning: {port_analysis.get('assessment', 'Completed')}")
                 if 'recommended_tests' in port_analysis:
                     analysis['recommendations'].extend(port_analysis['recommended_tests'])
 
             if 'vulnerabilities' in all_results:
                 vuln_analysis = self.analyze_vulnerabilities(all_results['vulnerabilities'])
+                analysis['sources']['vulnerabilities'] = vuln_analysis.get('source', 'model')
                 analysis['findings'].append(f"Vulnerability assessment: {vuln_analysis.get('assessment', 'Completed')}")
                 if 'remediation_steps' in vuln_analysis:
                     analysis['recommendations'].extend(vuln_analysis['remediation_steps'])
