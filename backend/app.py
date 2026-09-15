@@ -14,6 +14,7 @@ import re
 import shlex
 import threading
 from datetime import datetime
+from urllib.parse import urlparse
 
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -190,6 +191,17 @@ def validate_target(value):
         return None, "Target contains invalid characters"
     if len(parsed_target) != 1 or parsed_target[0] != target or parsed_target[0].startswith("-"):
         return None, "Target must not start with an option prefix"
+    if target.lower().startswith(("http://", "https://")):
+        try:
+            url_host = urlparse(target).hostname or ""
+        except ValueError:
+            # urlparse raises on malformed IPv6 URLs (e.g. "http://[");
+            # reject them as invalid input instead of erroring later.
+            return None, "Target contains invalid characters"
+        if url_host.startswith("-"):
+            # Stripping the scheme would hand Nmap an argv option (python-nmap
+            # re-splits the host string), so refuse these targets up front.
+            return None, "Target host must not start with an option prefix"
     return target, None
 
 

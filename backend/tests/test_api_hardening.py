@@ -128,6 +128,25 @@ class TestAppHardeningConfig(unittest.TestCase):
         self.assertIsNone(value)
         self.assertIn("too long", error)
 
+    def test_malformed_ipv6_urls_are_rejected_as_invalid_input(self):
+        """urlparse raises on malformed IPv6 URLs (e.g. "http://["); the
+        validator must reject them instead of surfacing a server error."""
+        for target in ("http://[", "http://]", "https://x]y"):
+            value, error = application.validate_target(target)
+            self.assertIsNone(value, target)
+            self.assertIn("invalid characters", error)
+
+    def test_uppercase_scheme_targets_validate_and_flag_hostile_hosts(self):
+        """RFC 3986 schemes are case-insensitive: HTTPS:// targets validate,
+        and the option-prefix refusal must not be bypassable by casing."""
+        value, error = application.validate_target("HTTPS://example.test")
+        self.assertEqual(value, "HTTPS://example.test")
+        self.assertIsNone(error)
+
+        value, error = application.validate_target("HTTPS://--script=vuln")
+        self.assertIsNone(value)
+        self.assertIn("option prefix", error)
+
 
 class TestOptionalEnvVarsFallBackWhenEmpty(unittest.TestCase):
     """Docker Compose passes optional settings as empty strings when unset,

@@ -1,12 +1,14 @@
 """Regression tests for scan reliability fixes.
 
 Covers: per-scan PortScanner instances, privilege-aware Nmap arguments,
-WHOIS library compatibility, report template robustness against missing
-severity fields, AXFR timeouts and SSL verification failure reporting.
+bounded Nmap runs, URL-shaped targets, WHOIS library compatibility, report
+template robustness against missing severity fields, AXFR timeouts and
+SSL verification failure reporting.
 """
 import os
 import ssl
 import sys
+import time
 import types
 import unittest
 from unittest.mock import MagicMock, patch
@@ -100,15 +102,16 @@ class TestPerScanPortScannerInstances(unittest.TestCase):
 class TestWhoisLibraryCompatibility(unittest.TestCase):
     def test_whois_lookup_reports_timeout_with_description(self):
         """A hung WHOIS server must surface a descriptive error (an empty
-        message would be treated as success by the API error contract)."""
+        message would be treated as success by the API error contract) and
+        the bounded wait must not block the calling thread past its limit."""
         module = ReconModule()
-        from concurrent.futures import TimeoutError as FutureTimeoutError
+
+        def stalled_lookup(domain):
+            time.sleep(10)
 
         with patch.object(sys.modules['whois'], 'whois', None, create=True), \
-                patch.object(sys.modules['whois'], 'query', lambda d: d, create=True), \
-                patch('modules.reconnaissance.ThreadPoolExecutor') as executor_cls:
-            executor_cls.return_value.submit.return_value.result.side_effect = FutureTimeoutError()
-
+                patch.object(sys.modules['whois'], 'query', stalled_lookup, create=True), \
+                patch('modules.reconnaissance.WHOIS_TIMEOUT_SECONDS', 0.2):
             result = module.whois_lookup('example.test')
 
         self.assertIn('timed out', result['error'])
@@ -143,6 +146,118 @@ class TestWhoisLibraryCompatibility(unittest.TestCase):
             result = module.whois_lookup('example.test')
 
         self.assertIn('error', result)
+
+
+class TestNmapRunBounding(unittest.TestCase):
+    def test_quick_port_scan_passes_a_process_timeout(self):
+        """python-nmap waits indefinitely by default; a wedged nmap process
+        must be killed instead of pinning a request thread forever."""
+        scanner = VulnScanner()
+        with patch('modules.scanner._raw_socket_available', return_value=False), \
+                patch('modules.scanner.nmap.PortScanner') as scanner_cls:
+            scanner_cls.return_value.scan.return_value = {'nmap': {'scaninfo': {}}}
+            scanner_cls.return_value.all_hosts.return_value = []
+            scanner._quick_port_scan('127.0.0.1')
+
+        kwargs = scanner_cls.return_value.scan.call_args.kwargs
+        self.assertGreater(kwargs.get('timeout', 0), 0)
+        self.assertIn('--host-timeout', kwargs['arguments'])
+
+    def test_port_scan_passes_a_process_timeout(self):
+        module = ReconModule()
+        with patch('modules.scanner._raw_socket_available', return_value=True), \
+                patch('modules.reconnaissance.nmap.PortScanner') as scanner_cls:
+            scanner_cls.return_value.scan.return_value = {'nmap': {'scaninfo': {}}}
+            scanner_cls.return_value.all_hosts.return_value = []
+            module.port_scan('127.0.0.1', '1-100')
+
+        kwargs = scanner_cls.return_value.scan.call_args.kwargs
+        self.assertGreater(kwargs.get('timeout', 0), 0)
+        self.assertIn('--host-timeout', kwargs['arguments'])
+        self.assertIn('-O', kwargs['arguments'])
+
+
+class TestUrlShapedTargets(unittest.TestCase):
+    def test_quick_port_scan_scans_the_url_hostname(self):
+        """Nmap resolves hosts, not URLs: a documented https:// target must
+        reach Nmap as a bare hostname instead of aborting the whole scan."""
+        scanner = VulnScanner()
+        with patch('modules.scanner._raw_socket_available', return_value=False), \
+                patch('modules.scanner.nmap.PortScanner') as scanner_cls:
+            scanner_cls.return_value.scan.return_value = {'nmap': {'scaninfo': {}}}
+            scanner_cls.return_value.all_hosts.return_value = []
+            with patch.object(scanner, '_web_vulnerability_scan', return_value=[]), \
+                    patch.object(scanner, '_is_https_available', return_value=False):
+                scanner.scan_target('https://example.test', 'web')
+
+        self.assertEqual(scanner_cls.return_value.scan.call_args.args[0], 'example.test')
+
+    def test_port_scan_scans_the_url_hostname(self):
+        module = ReconModule()
+        with patch('modules.scanner._raw_socket_available', return_value=False), \
+                patch('modules.reconnaissance.nmap.PortScanner') as scanner_cls:
+            scanner_cls.return_value.scan.return_value = {'nmap': {'scaninfo': {}}}
+            scanner_cls.return_value.all_hosts.return_value = []
+            module.port_scan('https://example.test', '1-100')
+
+        self.assertEqual(scanner_cls.return_value.scan.call_args.args[0], 'example.test')
+
+    def test_nmap_target_extracts_the_url_hostname(self):
+        """URL-shaped targets hand Nmap the bare host; the URL form keeps
+        flowing to the HTTP and TLS checks that can speak it."""
+        from modules.scanner import _nmap_target
+
+        self.assertEqual(_nmap_target('https://example.test'), 'example.test')
+        self.assertEqual(_nmap_target('http://example.test:8080/path'), 'example.test')
+        self.assertEqual(_nmap_target('example.test'), 'example.test')
+        self.assertEqual(_nmap_target('198.51.100.7'), '198.51.100.7')
+
+    def test_option_prefixed_url_hostnames_are_refused(self):
+        """A URL whose hostname starts with "-" would reach Nmap's argv as
+        an option once the scheme is stripped (python-nmap re-splits the
+        host string); the module must refuse it."""
+        from modules.scanner import _nmap_target
+
+        with self.assertRaises(ValueError):
+            _nmap_target('https://--script=vuln')
+        with self.assertRaises(ValueError):
+            _nmap_target('http://-p22')
+
+    def test_uppercase_schemes_are_recognized_case_insensitively(self):
+        """RFC 3986 schemes are case-insensitive: HTTPS:// targets must
+        resolve the host like https:// ones, hostile casing included."""
+        from modules.scanner import _nmap_target
+
+        self.assertEqual(_nmap_target('HTTPS://example.test'), 'example.test')
+        with self.assertRaises(ValueError):
+            _nmap_target('HTTPS://--script=vuln')
+
+    def test_scan_target_normalizes_uppercase_schemes_for_the_web_checks(self):
+        """The URL checks match scheme prefixes case-sensitively; an
+        uppercase scheme must be normalized so those checks still run."""
+        scanner = VulnScanner()
+        with patch('modules.scanner._raw_socket_available', return_value=False), \
+                patch('modules.scanner.nmap.PortScanner') as scanner_cls:
+            scanner_cls.return_value.scan.return_value = {'nmap': {'scaninfo': {}}}
+            scanner_cls.return_value.all_hosts.return_value = []
+            with patch.object(scanner, '_web_vulnerability_scan', return_value=[]) as web_mock, \
+                    patch.object(scanner, '_is_https_available', return_value=False):
+                scanner.scan_target('HTTPS://example.test', 'web')
+
+        self.assertEqual(scanner_cls.return_value.scan.call_args.args[0], 'example.test')
+        web_mock.assert_called_once_with('https://example.test')
+
+    def test_web_checks_keep_receiving_the_full_url(self):
+        """The web checks speak HTTP: they must keep receiving the original
+        URL while the port context uses the bare hostname."""
+        scanner = VulnScanner()
+        with patch.object(scanner, '_quick_port_scan', return_value=[]) as quick_mock, \
+                patch.object(scanner, '_web_vulnerability_scan', return_value=[]) as web_mock, \
+                patch.object(scanner, '_is_https_available', return_value=False):
+            scanner.scan_target('https://example.test', 'web')
+
+        quick_mock.assert_called_once_with('example.test')
+        web_mock.assert_called_once_with('https://example.test')
 
 
 class TestZoneTransferTimeout(unittest.TestCase):

@@ -8,6 +8,35 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
+# Nmap runs must always terminate. --host-timeout makes nmap itself skip a
+# host that makes no progress (filtered, blackholed), so ordinary single-host
+# scans end on their own; the process timeout below is the absolute backstop
+# for pathological runs (a wedged nmap otherwise pins a request thread and a
+# SCAN_SLOT forever, because python-nmap waits indefinitely by default).
+NMAP_HOST_TIMEOUT = "5m"
+NMAP_PROCESS_TIMEOUT_SECONDS = 1800
+
+
+def _nmap_target(target):
+    """Return the host Nmap should scan when the target is URL-shaped.
+
+    Nmap resolves hosts, not URLs: a documented "https://example.com" target
+    previously aborted the whole scan before the web checks could run. The
+    URL keeps flowing to the HTTP/TLS checks; Nmap and the raw-socket checks
+    receive the bare hostname. Schemes are matched case-insensitively
+    because RFC 3986 defines them that way.
+    """
+    if not target.lower().startswith(("http://", "https://")):
+        return target
+    host = urlparse(target).hostname or target
+    # A hostname starting with "-" would reach Nmap's argv as an option
+    # once the scheme is stripped (python-nmap re-splits the host string);
+    # refuse it the same way the API validator refuses option-prefixed
+    # targets. The API layer also rejects these before the modules run.
+    if host.startswith("-"):
+        raise ValueError("Target host must not start with an option prefix")
+    return host
+
 
 def _raw_socket_available():
     """Return True when the process may create raw sockets (CAP_NET_RAW/root)."""
@@ -49,22 +78,29 @@ class VulnScanner:
         """Perform vulnerability scan on target"""
         try:
             logger.info(f"Starting vulnerability scan on {target} (type: {scan_type})")
-            
+
             vulnerabilities = []
-            
+            # The URL-shaped checks below match scheme prefixes
+            # case-sensitively; normalize the scheme once so "HTTPS://"
+            # targets scan exactly like "https://" ones (RFC 3986).
+            scheme, separator, rest = target.partition("//")
+            if separator and scheme.lower() in ("http:", "https:"):
+                target = f"{scheme.lower()}//{rest}"
+            scan_host = _nmap_target(target)
+
             # First, get open ports for context
-            port_scan_results = self._quick_port_scan(target)
-            
+            port_scan_results = self._quick_port_scan(scan_host)
+
             if scan_type == 'basic':
-                vulnerabilities.extend(self._basic_vulnerability_scan(target, port_scan_results))
+                vulnerabilities.extend(self._basic_vulnerability_scan(scan_host, port_scan_results))
             elif scan_type == 'web':
                 vulnerabilities.extend(self._web_vulnerability_scan(target))
             elif scan_type == 'network':
-                vulnerabilities.extend(self._network_vulnerability_scan(target, port_scan_results))
+                vulnerabilities.extend(self._network_vulnerability_scan(scan_host, port_scan_results))
             elif scan_type == 'comprehensive':
-                vulnerabilities.extend(self._basic_vulnerability_scan(target, port_scan_results))
+                vulnerabilities.extend(self._basic_vulnerability_scan(scan_host, port_scan_results))
                 vulnerabilities.extend(self._web_vulnerability_scan(target))
-                vulnerabilities.extend(self._network_vulnerability_scan(target, port_scan_results))
+                vulnerabilities.extend(self._network_vulnerability_scan(scan_host, port_scan_results))
             
             # Add SSL/TLS checks if HTTPS is available
             if self._is_https_available(target):
@@ -95,7 +131,12 @@ class VulnScanner:
         # Scan common ports quickly. Service banners are part of the results
         # contract, so -sV must be present for version/product to be filled.
         common_ports = "21,22,23,25,53,80,110,143,443,993,995,1433,3306,3389,5432,5900,8080,8443"
-        scan_output = nm.scan(target, common_ports, arguments=_nmap_scan_args())
+        scan_output = nm.scan(
+            target,
+            common_ports,
+            arguments=_nmap_scan_args() + f" --host-timeout={NMAP_HOST_TIMEOUT}",
+            timeout=NMAP_PROCESS_TIMEOUT_SECONDS,
+        )
         scan_error = scan_output.get('nmap', {}).get('scaninfo', {}).get('error') if isinstance(scan_output, dict) else None
         if scan_error:
             message = ''.join(scan_error) if isinstance(scan_error, list) else str(scan_error)

@@ -286,15 +286,15 @@ class TestNoUnusedImports(unittest.TestCase):
                 f"reconnaissance.py line {i} still has 'import json' (unused)"
             )
 
-    def test_reconnaissance_no_threading_import(self):
+    def test_reconnaissance_threading_import_backs_the_whois_bound(self):
+        """The whois lookup now runs on a bounded daemon thread, so the
+        threading import is live: it must stay paired with that usage
+        instead of regressing to a dead import."""
         recon_path = os.path.join(os.path.dirname(__file__), '..', 'modules', 'reconnaissance.py')
         with open(recon_path, 'r') as f:
-            lines = f.readlines()
-        for i, line in enumerate(lines, 1):
-            self.assertFalse(
-                line.strip() == 'import threading',
-                f"reconnaissance.py line {i} still has 'import threading' (unused)"
-            )
+            source = f.read()
+        self.assertIn('import threading', source)
+        self.assertIn('threading.Thread', source)
 
     def test_scanner_no_subprocess_import(self):
         scanner_path = os.path.join(os.path.dirname(__file__), '..', 'modules', 'scanner.py')

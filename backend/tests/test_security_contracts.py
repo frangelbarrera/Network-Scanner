@@ -20,6 +20,7 @@ sys.modules["nmap"] = nmap_mock
 import app as application  # noqa: E402
 from models.scan_results import db as models_db  # noqa: E402
 from modules.reconnaissance import ReconModule  # noqa: E402
+from modules.scanner import NMAP_PROCESS_TIMEOUT_SECONDS  # noqa: E402
 
 
 class TestProductionConfiguration(unittest.TestCase):
@@ -92,10 +93,14 @@ class TestReconnaissanceContract(unittest.TestCase):
 
         self.assertIn('Nmap execution failed', result['error'])
         self.assertIn('raw socket permission denied', result['error'])
+        # The invocation contract now carries the run bounds as well: the
+        # per-host timeout keeps nmap itself finite and the process timeout
+        # is the backstop that frees the request thread.
         scanner_cls.return_value.scan.assert_called_once_with(
             '127.0.0.1',
             '1-2,80',
-            arguments='-sS -sV -O',
+            arguments='-sS -sV --host-timeout=5m -O',
+            timeout=NMAP_PROCESS_TIMEOUT_SECONDS,
         )
 
 
@@ -133,6 +138,38 @@ class TestApiValidation(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('scan_type must be one of', response.get_json()['error'])
         application.vuln_scanner.scan_target.assert_not_called()
+
+    def test_option_prefixed_url_host_target_is_rejected_before_scanning(self):
+        """Stripping the scheme would hand Nmap an argv option, so a URL
+        whose hostname starts with "-" must be refused at validation time."""
+        application.recon_module.port_scan = MagicMock()
+        try:
+            response = self.client.post(
+                '/api/scan/ports',
+                json={'target': 'https://--script=vuln', 'port_range': '80'},
+            )
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('option prefix', response.get_json()['error'])
+            application.recon_module.port_scan.assert_not_called()
+        finally:
+            # The suite shares one app instance: reset the scan endpoint's
+            # limiter bucket so later tests keep their full quota.
+            application.limiter.reset()
+
+    def test_malformed_ipv6_url_target_is_rejected_before_scanning(self):
+        """urlparse raises on malformed IPv6 URLs; validation must reject
+        them with 400 instead of surfacing a server error."""
+        application.recon_module.port_scan = MagicMock()
+        try:
+            response = self.client.post(
+                '/api/scan/ports',
+                json={'target': 'http://[', 'port_range': '80'},
+            )
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('invalid characters', response.get_json()['error'])
+            application.recon_module.port_scan.assert_not_called()
+        finally:
+            application.limiter.reset()
 
     def test_port_scan_failure_is_returned_as_an_explicit_http_error(self):
         with patch.object(

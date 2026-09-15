@@ -3,13 +3,23 @@ import nmap
 import dns.resolver
 import whois
 import requests
+import threading
 from datetime import datetime
 import socket
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor
 
-from modules.scanner import _nmap_scan_args
+from modules.scanner import (
+    _nmap_scan_args,
+    _nmap_target,
+    NMAP_HOST_TIMEOUT,
+    NMAP_PROCESS_TIMEOUT_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
+
+# The whois package exposes no per-call timeout and runs the system binary
+# without one either, so the wait is bounded here instead.
+WHOIS_TIMEOUT_SECONDS = 20
 
 class ReconModule:
     """Reconnaissance module for subdomain enumeration, port scanning, DNS enumeration, and WHOIS lookups"""
@@ -181,11 +191,17 @@ class ReconModule:
             # The API validator already accepts Nmap's numeric single-port,
             # range, and comma-separated range syntax. Preserve that validated
             # expression so values such as "1-2,80" reach Nmap unchanged.
-            # OS detection (-O) only runs when raw sockets are available.
-            scan_args = _nmap_scan_args()
+            # OS detection (-O) only runs when raw sockets are available, and
+            # both the per-host and the process bounds keep the run finite.
+            scan_args = _nmap_scan_args() + f" --host-timeout={NMAP_HOST_TIMEOUT}"
             if '-sS' in scan_args:
                 scan_args += ' -O'
-            scan_output = nm.scan(target, port_range, arguments=scan_args)
+            scan_output = nm.scan(
+                _nmap_target(target),
+                port_range,
+                arguments=scan_args,
+                timeout=NMAP_PROCESS_TIMEOUT_SECONDS,
+            )
             scan_error = scan_output.get('nmap', {}).get('scaninfo', {}).get('error')
             if scan_error:
                 message = ''.join(scan_error) if isinstance(scan_error, list) else str(scan_error)
@@ -243,15 +259,27 @@ class ReconModule:
             lookup = getattr(whois, 'whois', None) or getattr(whois, 'query', None)
             if lookup is None:
                 raise RuntimeError("whois library exposes neither whois() nor query()")
-            # The whois package exposes no per-call timeout; bound the wait so
-            # a slow WHOIS server cannot pin request threads indefinitely.
-            executor = ThreadPoolExecutor(max_workers=1)
-            try:
-                w = executor.submit(lookup, domain).result(timeout=20)
-            except FutureTimeoutError:
+            # The whois package exposes no per-call timeout; bound the wait
+            # with a daemon worker so a hung WHOIS server cannot pin request
+            # threads. A daemon thread never keeps the process alive at
+            # shutdown, unlike an executor worker whose shutdown(wait=False)
+            # still leaks a joinable thread per timed-out lookup.
+            result_box = {}
+
+            def run_lookup():
+                try:
+                    result_box['record'] = lookup(domain)
+                except Exception as exc:
+                    result_box['error'] = exc
+
+            worker = threading.Thread(target=run_lookup, daemon=True)
+            worker.start()
+            worker.join(timeout=WHOIS_TIMEOUT_SECONDS)
+            if worker.is_alive():
                 return {'error': f'WHOIS lookup timed out for {domain}', 'domain': domain}
-            finally:
-                executor.shutdown(wait=False)
+            if 'error' in result_box:
+                raise result_box['error']
+            w = result_box.get('record')
             if w is None:
                 return {'error': f'No WHOIS data available for {domain}', 'domain': domain}
 
