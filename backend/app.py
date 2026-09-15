@@ -89,7 +89,7 @@ def rate_limit_key():
         api_access_token
         and scheme.lower() == "bearer"
         and token
-        and hmac.compare_digest(token, api_access_token)
+        and hmac.compare_digest(token.encode(), api_access_token.encode())
     ):
         # Hash the token: limiter keys end up in the configured storage and
         # must not leak the credential itself.
@@ -155,9 +155,15 @@ def require_api_token(view):
         if not api_access_token:
             return view(*args, **kwargs)
 
+        # Compare bytes: hmac.compare_digest(str, str) is ASCII-only and
+        # raises TypeError on hostile non-ASCII header values, turning an
+        # authentication failure into a server error before the request
+        # even reaches the limiter.
         authorization = request.headers.get("Authorization", "")
         scheme, _, token = authorization.partition(" ")
-        if scheme.lower() != "bearer" or not token or not hmac.compare_digest(token, api_access_token):
+        if scheme.lower() != "bearer" or not token or not hmac.compare_digest(
+            token.encode(), api_access_token.encode()
+        ):
             return jsonify({"error": "Valid bearer token required"}), 401
         return view(*args, **kwargs)
 
@@ -488,7 +494,13 @@ def authenticate_socket(auth):
     if not api_access_token:
         return True
     token = auth.get("token") if isinstance(auth, dict) else None
-    return bool(token and hmac.compare_digest(token, api_access_token))
+    # The payload is arbitrary JSON: reject non-string tokens outright and
+    # compare bytes so hostile non-ASCII values cannot raise mid-handshake.
+    return bool(
+        isinstance(token, str)
+        and token
+        and hmac.compare_digest(token.encode(), api_access_token.encode())
+    )
 
 
 @socketio.on("start_automated_scan")

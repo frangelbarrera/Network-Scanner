@@ -43,6 +43,61 @@ class TestRateLimitKeyHygiene(unittest.TestCase):
             self.assertEqual(application.rate_limit_key(), "10.1.2.3")
 
 
+class TestHostileAuthorizationHeaders(unittest.TestCase):
+    """hmac.compare_digest(str, str) is ASCII-only: hostile header values
+    raised TypeError inside auth and limiter code paths, turning rejects into
+    500s that never consume rate-limit quota."""
+
+    NON_ASCII_TOKEN = "токен-тест"
+
+    def test_non_ascii_bearer_tokens_are_rejected_not_crashed(self):
+        client = application.app.test_client()
+        with patch.object(application, "api_access_token", "unit-test-token"):
+            response = client.get(
+                "/api/report/download/security_report_20260915_000000.html",
+                headers={"Authorization": f"Bearer {self.NON_ASCII_TOKEN}"},
+            )
+        self.assertEqual(response.status_code, 401)
+
+    def test_non_ascii_floods_consume_the_rate_limit(self):
+        """The fixed comparison must also keep hostile requests inside the
+        limiter: flooding with invalid tokens reaches 429 instead of the
+        unlimited unauthenticated server errors the TypeError produced."""
+        client = application.app.test_client()
+        try:
+            with patch.object(application, "api_access_token", "unit-test-token"):
+                statuses = [
+                    client.get(
+                        "/api/health",
+                        headers={"Authorization": f"Bearer {self.NON_ASCII_TOKEN}"},
+                    ).status_code
+                    for _ in range(65)
+                ]
+            self.assertIn(429, statuses)
+        finally:
+            application.limiter.reset()
+
+    def test_rate_limit_key_stays_total_over_non_ascii_tokens(self):
+        with patch.object(application, "api_access_token", "unit-test-token"):
+            with application.app.test_request_context(
+                "/", headers={"Authorization": f"Bearer {self.NON_ASCII_TOKEN}"}
+            ):
+                key = application.rate_limit_key()
+        self.assertTrue(key)
+
+    def test_socket_auth_rejects_non_string_tokens(self):
+        """The WebSocket auth payload is arbitrary JSON: token values that
+        are not strings must be rejected without raising."""
+        with patch.object(application, "api_access_token", "unit-test-token"):
+            accepted = application.authenticate_socket({"token": {"nested": "object"}})
+        self.assertFalse(accepted)
+
+    def test_socket_auth_rejects_non_ascii_tokens_without_raising(self):
+        with patch.object(application, "api_access_token", "unit-test-token"):
+            accepted = application.authenticate_socket({"token": self.NON_ASCII_TOKEN})
+        self.assertFalse(accepted)
+
+
 class TestAppHardeningConfig(unittest.TestCase):
     def test_request_body_size_is_bounded(self):
         self.assertEqual(application.app.config["MAX_CONTENT_LENGTH"], 5 * 1024 * 1024)
