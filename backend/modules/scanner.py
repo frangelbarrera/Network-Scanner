@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 # SCAN_SLOT forever, because python-nmap waits indefinitely by default).
 NMAP_HOST_TIMEOUT = "5m"
 NMAP_PROCESS_TIMEOUT_SECONDS = 1800
+# URLs may be added only through an explicit CI flag for isolated lab targets.
+TLS_INSECURE_ALLOWLIST = []
 
 
 def _nmap_target(target):
@@ -197,7 +199,7 @@ class VulnScanner:
             for url in urls_to_test:
                 try:
                     # Basic connectivity test
-                    response = requests.get(url, timeout=10, verify=False)
+                    response = requests.get(url, timeout=10, verify=True)
                     
                     # Check for information disclosure
                     vulns = self._check_info_disclosure(url, response)
@@ -473,7 +475,7 @@ class VulnScanner:
         for file in common_files:
             try:
                 test_url = f"{url.rstrip('/')}/{file}"
-                response = requests.get(test_url, timeout=5, verify=False)
+                response = requests.get(test_url, timeout=5, verify=True)
                 if response.status_code == 200:
                     found_files.append(file)
             except requests.exceptions.RequestException:
@@ -502,7 +504,7 @@ class VulnScanner:
         try:
             # Test for reflected XSS in URL parameters
             test_url = f"{url}?test={test_payload}"
-            response = requests.get(test_url, timeout=5, verify=False)
+            response = requests.get(test_url, timeout=5, verify=True)
             
             if test_payload in response.text:
                 vulnerabilities.append({
@@ -530,7 +532,7 @@ class VulnScanner:
             else:
                 # Test HTTPS connectivity
                 test_url = f'https://{target}'
-                requests.get(test_url, timeout=5, verify=False)
+                requests.get(test_url, timeout=5, verify=True)
                 return True
         except requests.exceptions.RequestException:
             return False
