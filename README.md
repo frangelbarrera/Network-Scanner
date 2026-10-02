@@ -341,3 +341,7 @@ Network Scanner is for educational and authorized testing purposes only. Users a
 ---
 
 **Built for the cybersecurity community**
+
+## Safe target policy
+
+See [docs/safe-target-policy.md](docs/safe-target-policy.md).
