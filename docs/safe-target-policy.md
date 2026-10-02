@@ -1,5 +1,13 @@
-# Safe target policy
+**Maintainer:** Frangel Raúl Crespo Barrera
+**Last verified:** 2026-10-02
+**Scope:** Flask API, CLI, React UI, target validation, subprocess execution, reports, and retention.
 
-Scan only systems owned by the operator or explicitly authorized in writing. Safe mode should use a laboratory allowlist, reject public targets by default, limit concurrency and rate, and avoid third-party scanning.
+| Field | Current record |
+|---|---|
+| Status | Backend, CLI, and frontend tests exist; policy enforcement should remain covered by tests. |
+| Evidence | `backend/tests/`, `cli/test_network_scanner_cli.py`, `frontend/src/*.test.js`, `backend/`, `cli/`, `.github/workflows/ci.yml`. |
+| Verification | Run backend/CLI/frontend tests; keep nmap mocked in CI and inspect target validation before runtime use. |
+| Owner | Repository owner; scan operator owns authorization. |
+| Limitations | No third-party scanning is authorized by this repository; reports may contain sensitive topology. |
 
-Redact credentials, tokens, and sensitive topology from reports. Keep nmap and other process execution constrained, mock external tools in tests, and define report retention and cleanup.
+Scan only owned or explicitly authorized systems. Safe mode should use laboratory allowlists, reject public targets by default, limit concurrency/rate, redact credentials and tokens, and define retention/cleanup.
