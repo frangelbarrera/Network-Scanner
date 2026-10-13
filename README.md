@@ -296,6 +296,7 @@ Generate structured security reports in multiple formats:
 - Follow responsible disclosure practices
 - Respect rate limits and target system resources
 - Review local laws and regulations before testing
+- See [COMPLIANCE.md](COMPLIANCE.md) for informative IEC 62443-3-3 scope notes; this is not a compliance or security-level claim.
 
 ##  Contributing
 
